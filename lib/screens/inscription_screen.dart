@@ -15,26 +15,50 @@ class _InscriptionScreenState extends ConsumerState<InscriptionScreen> {
   final TextEditingController nameController = TextEditingController();
   final TextEditingController emailController = TextEditingController();
   final TextEditingController passwordController = TextEditingController();
-  String selectedRole = 'Expéditeur';
+  final TextEditingController confirmPasswordController =
+      TextEditingController();
+
   bool _isLoading = false;
+  bool _obscurePassword = true;
+  bool _obscureConfirm = true;
+
   String? _nameError;
   String? _emailError;
   String? _passwordError;
-  String? _roleError;
+  String? _confirmPasswordError;
 
   bool _validate() {
     setState(() {
       _nameError = nameController.text.trim().isEmpty ? 'Nom requis' : null;
-      _emailError = emailController.text.trim().isEmpty ? 'Email requis' : null;
-      _passwordError = passwordController.text.trim().isEmpty
-          ? 'Mot de passe requis'
+
+      final email = emailController.text.trim();
+      if (email.isEmpty) {
+        _emailError = 'Email requis';
+      } else if (!email.contains('@')) {
+        _emailError = 'Email invalide';
+      } else {
+        _emailError = null;
+      }
+
+      final password = passwordController.text.trim();
+      if (password.isEmpty) {
+        _passwordError = 'Mot de passe requis';
+      } else if (password.length < 6) {
+        _passwordError = 'Minimum 6 caractères';
+      } else {
+        _passwordError = null;
+      }
+
+      _confirmPasswordError =
+          confirmPasswordController.text != passwordController.text
+          ? 'Les mots de passe ne correspondent pas'
           : null;
-      _roleError = selectedRole.isEmpty ? 'Rôle requis' : null;
     });
+
     return _nameError == null &&
         _emailError == null &&
         _passwordError == null &&
-        _roleError == null;
+        _confirmPasswordError == null;
   }
 
   @override
@@ -42,7 +66,95 @@ class _InscriptionScreenState extends ConsumerState<InscriptionScreen> {
     nameController.dispose();
     emailController.dispose();
     passwordController.dispose();
+    confirmPasswordController.dispose();
     super.dispose();
+  }
+
+  Widget _buildLabel(String text) {
+    return Padding(
+      padding: const EdgeInsets.only(left: 4, bottom: 6),
+      child: Text(
+        text,
+        style: const TextStyle(
+          fontSize: 11,
+          fontWeight: FontWeight.w600,
+          color: AppColors.textHint,
+          letterSpacing: 1.1,
+        ),
+      ),
+    );
+  }
+
+  Widget _buildField({
+    required TextEditingController controller,
+    required String hint,
+    String? error,
+    bool obscure = false,
+    bool obscureToggle = true,
+    VoidCallback? onToggle,
+    TextInputType keyboardType = TextInputType.text,
+  }) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        TextField(
+          controller: controller,
+          obscureText: obscure,
+          keyboardType: keyboardType,
+          style: const TextStyle(color: AppColors.textPrimary, fontSize: 15),
+          decoration: InputDecoration(
+            hintText: hint,
+            hintStyle: const TextStyle(color: AppColors.textHint),
+            filled: true,
+            fillColor: error != null
+                ? AppColors.danger.withValues(alpha: 0.08)
+                : AppColors.bg4,
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(14),
+              borderSide: error != null
+                  ? const BorderSide(color: AppColors.danger, width: 1.5)
+                  : BorderSide.none,
+            ),
+            enabledBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(14),
+              borderSide: error != null
+                  ? const BorderSide(color: AppColors.danger, width: 1.5)
+                  : BorderSide.none,
+            ),
+            focusedBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(14),
+              borderSide: const BorderSide(color: AppColors.amber, width: 1.5),
+            ),
+            contentPadding: const EdgeInsets.symmetric(
+              horizontal: 18,
+              vertical: 16,
+            ),
+            suffixIcon: onToggle != null
+                ? IconButton(
+                    icon: Icon(
+                      obscureToggle
+                          ? Icons.visibility_off_outlined
+                          : Icons.visibility_outlined,
+                      color: AppColors.textHint,
+                      size: 20,
+                    ),
+                    onPressed: onToggle,
+                  )
+                : null,
+          ),
+        ),
+        if (error != null) ...[
+          const SizedBox(height: 4),
+          Padding(
+            padding: const EdgeInsets.only(left: 4),
+            child: Text(
+              error,
+              style: const TextStyle(color: AppColors.danger, fontSize: 11),
+            ),
+          ),
+        ],
+      ],
+    );
   }
 
   @override
@@ -50,160 +162,99 @@ class _InscriptionScreenState extends ConsumerState<InscriptionScreen> {
     return Scaffold(
       backgroundColor: AppColors.bg0,
       body: SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 24),
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 32),
           child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Text(
-                'Créer un compte',
-                style: TextStyle(
-                  fontSize: 28,
-                  fontWeight: FontWeight.bold,
-                  color: AppColors.textPrimary,
-                ),
-              ),
-              const SizedBox(height: 8),
-              const Text(
-                'Rejoins SnackRunner pour publier ou accepter des courses.',
-                textAlign: TextAlign.center,
-                style: TextStyle(fontSize: 14, color: AppColors.textSecondary),
-              ),
-              const SizedBox(height: 32),
-              TextField(
-                controller: nameController,
-                decoration: InputDecoration(
-                  hintText: 'Nom',
-                  hintStyle: const TextStyle(color: AppColors.textHint),
-                  filled: true,
-                  fillColor: _nameError != null
-                      ? AppColors.danger.withValues(alpha: 0.1)
-                      : AppColors.bg4,
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(50),
-                    borderSide: _nameError != null
-                        ? const BorderSide(color: AppColors.danger, width: 1.5)
-                        : BorderSide.none,
-                  ),
-                  contentPadding: const EdgeInsets.symmetric(
-                    horizontal: 20,
-                    vertical: 16,
-                  ),
-                ),
-              ),
-              if (_nameError != null) ...[
-                const SizedBox(height: 4),
-                Text(
-                  _nameError!,
-                  style: const TextStyle(color: Colors.red, fontSize: 12),
-                ),
-              ],
-              const SizedBox(height: 12),
-              TextField(
-                controller: emailController,
-                decoration: InputDecoration(
-                  hintText: 'Email universitaire',
-                  hintStyle: const TextStyle(color: AppColors.textHint),
-                  filled: true,
-                  fillColor: _emailError != null
-                      ? AppColors.danger.withValues(alpha: 0.1)
-                      : AppColors.bg4,
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(50),
-                    borderSide: _emailError != null
-                        ? const BorderSide(color: AppColors.danger, width: 1.5)
-                        : BorderSide.none,
-                  ),
-                  contentPadding: const EdgeInsets.symmetric(
-                    horizontal: 20,
-                    vertical: 16,
-                  ),
-                ),
-              ),
-              if (_emailError != null) ...[
-                const SizedBox(height: 4),
-                Text(
-                  _emailError!,
-                  style: const TextStyle(color: Colors.red, fontSize: 12),
-                ),
-              ],
-              const SizedBox(height: 12),
-              const Text(
-                'TON RÔLE',
-                style: TextStyle(
-                  fontSize: 11,
-                  fontWeight: FontWeight.w500,
-                  color: AppColors.textHint,
-                  letterSpacing: 1.2,
-                ),
-              ),
-              const SizedBox(height: 8),
-              Row(
-                children: ['Expéditeur', 'Runner'].map((role) {
-                  final selected = selectedRole == role;
-                  return Expanded(
-                    child: GestureDetector(
-                      onTap: () => setState(() => selectedRole = role),
-                      child: Container(
-                        margin: const EdgeInsets.only(right: 8),
-                        padding: const EdgeInsets.symmetric(vertical: 12),
-                        decoration: BoxDecoration(
-                          color: selected ? AppColors.amber : AppColors.white,
-                          borderRadius: BorderRadius.circular(50),
-                          border: Border.all(
-                            color: selected
-                                ? AppColors.amber
-                                : AppColors.border,
-                            width: 1.5,
+              const SizedBox(height: 16),
+              Center(
+                child: Column(
+                  children: [
+                    Container(
+                      width: 56,
+                      height: 56,
+                      decoration: BoxDecoration(
+                        color: AppColors.amber,
+                        borderRadius: BorderRadius.circular(16),
+                        boxShadow: [
+                          BoxShadow(
+                            color: AppColors.amber.withValues(alpha: 0.35),
+                            blurRadius: 20,
+                            spreadRadius: 2,
                           ),
-                        ),
+                        ],
+                      ),
+                      child: const Center(
                         child: Text(
-                          role,
-                          textAlign: TextAlign.center,
+                          'SR',
                           style: TextStyle(
-                            fontSize: 13,
-                            fontWeight: FontWeight.w500,
-                            color: selected
-                                ? AppColors.white
-                                : AppColors.textSecondary,
+                            fontSize: 18,
+                            fontWeight: FontWeight.bold,
+                            color: AppColors.black,
                           ),
                         ),
                       ),
                     ),
-                  );
-                }).toList(),
+                    const SizedBox(height: 16),
+                    const Text(
+                      'Créer un compte',
+                      style: TextStyle(
+                        fontSize: 26,
+                        fontWeight: FontWeight.bold,
+                        color: AppColors.textPrimary,
+                      ),
+                    ),
+                    const SizedBox(height: 6),
+                    const Text(
+                      'Poster et accepter des courses.',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        fontSize: 14,
+                        color: AppColors.textSecondary,
+                      ),
+                    ),
+                  ],
+                ),
               ),
-              const SizedBox(height: 12),
-              TextField(
+              const SizedBox(height: 36),
+              _buildLabel('NOM COMPLET'),
+              _buildField(
+                controller: nameController,
+                hint: 'Ton prénom et nom',
+                error: _nameError,
+              ),
+              const SizedBox(height: 16),
+              _buildLabel('EMAIL UNIVERSITAIRE'),
+              _buildField(
+                controller: emailController,
+                hint: 'ton@email.univ.cm',
+                error: _emailError,
+                keyboardType: TextInputType.emailAddress,
+              ),
+              const SizedBox(height: 16),
+              _buildLabel('MOT DE PASSE'),
+              _buildField(
                 controller: passwordController,
-                obscureText: true,
-                decoration: InputDecoration(
-                  hintText: 'Mot de passe',
-                  hintStyle: const TextStyle(color: AppColors.textHint),
-                  filled: true,
-                  fillColor: _passwordError != null
-                      ? AppColors.danger.withValues(alpha: 0.1)
-                      : AppColors.bg4,
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(50),
-                    borderSide: _passwordError != null
-                        ? const BorderSide(color: AppColors.danger, width: 1.5)
-                        : BorderSide.none,
-                  ),
-                  contentPadding: const EdgeInsets.symmetric(
-                    horizontal: 20,
-                    vertical: 16,
-                  ),
-                ),
+                hint: '••••••••',
+                error: _passwordError,
+                obscure: _obscurePassword,
+                obscureToggle: _obscurePassword,
+                onToggle: () =>
+                    setState(() => _obscurePassword = !_obscurePassword),
               ),
-              if (_passwordError != null) ...[
-                const SizedBox(height: 4),
-                Text(
-                  _passwordError!,
-                  style: const TextStyle(color: Colors.red, fontSize: 12),
-                ),
-              ],
-              const SizedBox(height: 24),
+              const SizedBox(height: 16),
+              _buildLabel('CONFIRMER LE MOT DE PASSE'),
+              _buildField(
+                controller: confirmPasswordController,
+                hint: '••••••••',
+                error: _confirmPasswordError,
+                obscure: _obscureConfirm,
+                obscureToggle: _obscureConfirm,
+                onToggle: () =>
+                    setState(() => _obscureConfirm = !_obscureConfirm),
+              ),
+              const SizedBox(height: 28),
               SizedBox(
                 width: double.infinity,
                 child: ElevatedButton(
@@ -220,16 +271,13 @@ class _InscriptionScreenState extends ConsumerState<InscriptionScreen> {
                                 );
 
                             if (response.user != null) {
-                              // Créer le profil dans la table users
                               await Supabase.instance.client
                                   .from('users')
-                                  .insert({
+                                  .upsert({
                                     'id': response.user!.id,
                                     'nom': nameController.text.trim(),
                                     'email': emailController.text.trim(),
-                                    'role': selectedRole == 'Runner'
-                                        ? 'runner'
-                                        : 'requester',
+                                    'role': 'requester',
                                   });
 
                               if (mounted) {
@@ -241,14 +289,14 @@ class _InscriptionScreenState extends ConsumerState<InscriptionScreen> {
                                     backgroundColor: Colors.green,
                                   ),
                                 );
-                                context.pop();
+                                context.go('/login');
                               }
                             }
                           } catch (e) {
                             if (mounted) {
-                              setState(() {
-                                _emailError = 'Erreur : ${e.toString()}';
-                              });
+                              setState(
+                                () => _emailError = 'Erreur : ${e.toString()}',
+                              );
                             }
                           } finally {
                             if (mounted) setState(() => _isLoading = false);
@@ -259,7 +307,7 @@ class _InscriptionScreenState extends ConsumerState<InscriptionScreen> {
                     foregroundColor: AppColors.black,
                     padding: const EdgeInsets.symmetric(vertical: 16),
                     shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(50),
+                      borderRadius: BorderRadius.circular(14),
                     ),
                   ),
                   child: _isLoading
@@ -282,6 +330,31 @@ class _InscriptionScreenState extends ConsumerState<InscriptionScreen> {
                         ),
                 ),
               ),
+              const SizedBox(height: 20),
+              Center(
+                child: GestureDetector(
+                  onTap: () => context.go('/login'),
+                  child: RichText(
+                    text: const TextSpan(
+                      text: 'Déjà un compte ? ',
+                      style: TextStyle(
+                        color: AppColors.textSecondary,
+                        fontSize: 14,
+                      ),
+                      children: [
+                        TextSpan(
+                          text: 'Se connecter',
+                          style: TextStyle(
+                            color: AppColors.amber,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 16),
             ],
           ),
         ),

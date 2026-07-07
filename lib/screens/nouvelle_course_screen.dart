@@ -41,6 +41,8 @@ class _NouvelleCourseScreenState extends State<NouvelleCourseScreen> {
             : double.tryParse(rewardController.text.trim()) == null
             ? 'Montant invalide'
             : null;
+      } else {
+        _rewardError = null;
       }
     });
     return _descriptionError == null &&
@@ -85,6 +87,129 @@ class _NouvelleCourseScreenState extends State<NouvelleCourseScreen> {
     );
   }
 
+  Widget _buildLabel(String text) {
+    return Padding(
+      padding: const EdgeInsets.only(left: 4, bottom: 8),
+      child: Text(
+        text,
+        style: const TextStyle(
+          fontSize: 10,
+          fontWeight: FontWeight.w700,
+          color: AppColors.textSecondary,
+          letterSpacing: 1.2,
+        ),
+      ),
+    );
+  }
+
+  Widget _buildTypeSelector(
+    List<String> options,
+    String selected,
+    void Function(String) onSelect,
+  ) {
+    return Container(
+      decoration: BoxDecoration(
+        color: AppColors.bg2,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: AppColors.border, width: 0.5),
+      ),
+      padding: const EdgeInsets.all(4),
+      child: Row(
+        children: options.map((type) {
+          final isSelected = selected == type;
+          return Expanded(
+            child: GestureDetector(
+              onTap: () => onSelect(type),
+              child: AnimatedContainer(
+                duration: const Duration(milliseconds: 180),
+                padding: const EdgeInsets.symmetric(vertical: 10),
+                decoration: BoxDecoration(
+                  color: isSelected ? AppColors.amber : Colors.transparent,
+                  borderRadius: BorderRadius.circular(11),
+                ),
+                child: Text(
+                  type,
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                    color: isSelected
+                        ? AppColors.black
+                        : AppColors.textSecondary,
+                  ),
+                ),
+              ),
+            ),
+          );
+        }).toList(),
+      ),
+    );
+  }
+
+  Widget _buildTextField({
+    required TextEditingController controller,
+    required String hint,
+    String? error,
+    int maxLines = 1,
+    TextInputType keyboardType = TextInputType.text,
+    String? suffixText,
+  }) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        TextField(
+          controller: controller,
+          maxLines: maxLines,
+          keyboardType: keyboardType,
+          style: const TextStyle(color: AppColors.textPrimary, fontSize: 14),
+          decoration: InputDecoration(
+            hintText: hint,
+            hintStyle: const TextStyle(color: AppColors.textHint, fontSize: 13),
+            filled: true,
+            fillColor: error != null
+                ? AppColors.danger.withValues(alpha: 0.08)
+                : AppColors.bg2,
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(14),
+              borderSide: error != null
+                  ? const BorderSide(color: AppColors.danger, width: 1.5)
+                  : BorderSide.none,
+            ),
+            enabledBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(14),
+              borderSide: error != null
+                  ? const BorderSide(color: AppColors.danger, width: 1.5)
+                  : const BorderSide(color: AppColors.border, width: 0.5),
+            ),
+            focusedBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(14),
+              borderSide: const BorderSide(color: AppColors.amber, width: 1.5),
+            ),
+            contentPadding: EdgeInsets.symmetric(
+              horizontal: 16,
+              vertical: maxLines > 1 ? 14 : 16,
+            ),
+            suffixText: suffixText,
+            suffixStyle: const TextStyle(
+              color: AppColors.textSecondary,
+              fontWeight: FontWeight.w500,
+            ),
+          ),
+        ),
+        if (error != null) ...[
+          const SizedBox(height: 4),
+          Padding(
+            padding: const EdgeInsets.only(left: 4),
+            child: Text(
+              error,
+              style: const TextStyle(color: AppColors.danger, fontSize: 11),
+            ),
+          ),
+        ],
+      ],
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -92,6 +217,7 @@ class _NouvelleCourseScreenState extends State<NouvelleCourseScreen> {
       body: SafeArea(
         child: Column(
           children: [
+            // Header
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
               child: Row(
@@ -101,6 +227,7 @@ class _NouvelleCourseScreenState extends State<NouvelleCourseScreen> {
                     icon: const Icon(
                       Icons.arrow_back_ios_new,
                       color: AppColors.textPrimary,
+                      size: 18,
                     ),
                   ),
                   const Expanded(
@@ -118,286 +245,74 @@ class _NouvelleCourseScreenState extends State<NouvelleCourseScreen> {
                 ],
               ),
             ),
+
             Expanded(
               child: SingleChildScrollView(
-                padding: const EdgeInsets.symmetric(horizontal: 20),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 20,
+                  vertical: 8,
+                ),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const SizedBox(height: 8),
-                    const Text(
-                      'TYPE DE COURSE',
-                      style: TextStyle(
-                        fontSize: 11,
-                        fontWeight: FontWeight.w500,
-                        color: AppColors.textHint,
-                        letterSpacing: 1.2,
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    Row(
-                      children: ['Cafétéria', 'Colis', 'Autre'].map((type) {
-                        final selected = typeSelectionne == type;
-                        return Expanded(
-                          child: GestureDetector(
-                            onTap: () => setState(() => typeSelectionne = type),
-                            child: Container(
-                              margin: const EdgeInsets.only(right: 6),
-                              padding: const EdgeInsets.symmetric(vertical: 10),
-                              decoration: BoxDecoration(
-                                color: selected
-                                    ? AppColors.amber
-                                    : AppColors.white,
-                                borderRadius: BorderRadius.circular(50),
-                                border: Border.all(
-                                  color: selected
-                                      ? AppColors.amber
-                                      : AppColors.border,
-                                  width: 1.5,
-                                ),
-                              ),
-                              child: Text(
-                                type,
-                                textAlign: TextAlign.center,
-                                style: TextStyle(
-                                  fontSize: 13,
-                                  fontWeight: FontWeight.w500,
-                                  color: selected
-                                      ? AppColors.white
-                                      : AppColors.textSecondary,
-                                ),
-                              ),
-                            ),
-                          ),
-                        );
-                      }).toList(),
+                    _buildLabel('TYPE DE COURSE'),
+                    _buildTypeSelector(
+                      ['Cafétéria', 'Colis', 'Autre'],
+                      typeSelectionne,
+                      (v) => setState(() => typeSelectionne = v),
                     ),
                     const SizedBox(height: 20),
-                    const Text(
-                      'DÉCRIS TA COMMANDE',
-                      style: TextStyle(
-                        fontSize: 11,
-                        fontWeight: FontWeight.w500,
-                        color: AppColors.textHint,
-                        letterSpacing: 1.2,
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    TextField(
+
+                    _buildLabel('DÉCRIS TA COMMANDE'),
+                    _buildTextField(
                       controller: descriptionController,
+                      hint: 'Ex : 2 sandwichs poulet, 1 jus d\'orange...',
+                      error: _descriptionError,
                       maxLines: 3,
-                      decoration: InputDecoration(
-                        hintText: 'Ex : 2 sandwichs poulet, 1 jus d\'orange...',
-                        hintStyle: const TextStyle(
-                          color: AppColors.textHint,
-                          fontSize: 13,
-                        ),
-                        filled: true,
-                        fillColor: _descriptionError != null
-                            ? AppColors.danger.withValues(alpha: 0.1)
-                            : AppColors.bg4,
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(16),
-                          borderSide: _descriptionError != null
-                              ? const BorderSide(color: Colors.red, width: 1.5)
-                              : BorderSide.none,
-                        ),
-                        contentPadding: const EdgeInsets.all(16),
-                      ),
                     ),
-                    if (_descriptionError != null) ...[
-                      const SizedBox(height: 4),
-                      Text(
-                        _descriptionError!,
-                        style: const TextStyle(color: Colors.red, fontSize: 12),
-                      ),
-                    ],
                     const SizedBox(height: 20),
-                    const Text(
-                      'LIEU DE RETRAIT',
-                      style: TextStyle(
-                        fontSize: 11,
-                        fontWeight: FontWeight.w500,
-                        color: AppColors.textHint,
-                        letterSpacing: 1.2,
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    TextField(
+
+                    _buildLabel('LIEU DE RETRAIT'),
+                    _buildTextField(
                       controller: pickupController,
-                      decoration: InputDecoration(
-                        hintText: 'Ex : Cafét RU B',
-                        hintStyle: const TextStyle(
-                          color: AppColors.textHint,
-                          fontSize: 13,
-                        ),
-                        filled: true,
-                        fillColor: _pickupError != null
-                            ? AppColors.danger.withValues(alpha: 0.1)
-                            : AppColors.bg4,
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(50),
-                          borderSide: _pickupError != null
-                              ? const BorderSide(color: Colors.red, width: 1.5)
-                              : BorderSide.none,
-                        ),
-                        contentPadding: const EdgeInsets.symmetric(
-                          horizontal: 20,
-                          vertical: 16,
-                        ),
-                      ),
+                      hint: 'Ex : Cafét RU B',
+                      error: _pickupError,
                     ),
-                    if (_pickupError != null) ...[
-                      const SizedBox(height: 4),
-                      Text(
-                        _pickupError!,
-                        style: const TextStyle(color: Colors.red, fontSize: 12),
-                      ),
-                    ],
                     const SizedBox(height: 20),
-                    const Text(
-                      'LIEU DE LIVRAISON',
-                      style: TextStyle(
-                        fontSize: 11,
-                        fontWeight: FontWeight.w500,
-                        color: AppColors.textHint,
-                        letterSpacing: 1.2,
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    TextField(
+
+                    _buildLabel('LIEU DE LIVRAISON'),
+                    _buildTextField(
                       controller: deliveryController,
-                      decoration: InputDecoration(
-                        hintText: 'Ex : Amphi 3, Bâtiment B',
-                        hintStyle: const TextStyle(
-                          color: AppColors.textHint,
-                          fontSize: 13,
-                        ),
-                        filled: true,
-                        fillColor: _deliveryError != null
-                            ? AppColors.danger.withValues(alpha: 0.1)
-                            : AppColors.bg4,
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(50),
-                          borderSide: _deliveryError != null
-                              ? const BorderSide(color: Colors.red, width: 1.5)
-                              : BorderSide.none,
-                        ),
-                        contentPadding: const EdgeInsets.symmetric(
-                          horizontal: 20,
-                          vertical: 16,
-                        ),
-                      ),
+                      hint: 'Ex : Amphi 3, Bâtiment B',
+                      error: _deliveryError,
                     ),
-                    if (_deliveryError != null) ...[
-                      const SizedBox(height: 4),
-                      Text(
-                        _deliveryError!,
-                        style: const TextStyle(color: Colors.red, fontSize: 12),
+                    const SizedBox(height: 20),
+
+                    _buildLabel('TYPE DE RÉCOMPENSE'),
+                    _buildTypeSelector(
+                      ['Argent', 'Nourriture'],
+                      recompenseType,
+                      (v) => setState(() => recompenseType = v),
+                    ),
+
+                    if (recompenseType == 'Argent') ...[
+                      const SizedBox(height: 16),
+                      _buildLabel('MONTANT'),
+                      _buildTextField(
+                        controller: rewardController,
+                        hint: '500',
+                        error: _rewardError,
+                        keyboardType: TextInputType.number,
+                        suffixText: 'FCFA',
                       ),
                     ],
-                    const SizedBox(height: 20),
-                    const Text(
-                      'TYPE DE RÉCOMPENSE',
-                      style: TextStyle(
-                        fontSize: 11,
-                        fontWeight: FontWeight.w500,
-                        color: AppColors.textHint,
-                        letterSpacing: 1.2,
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    Row(
-                      children: ['Argent', 'Nourriture'].map((type) {
-                        final selected = recompenseType == type;
-                        return Expanded(
-                          child: GestureDetector(
-                            onTap: () => setState(() => recompenseType = type),
-                            child: Container(
-                              margin: const EdgeInsets.only(right: 6),
-                              padding: const EdgeInsets.symmetric(vertical: 10),
-                              decoration: BoxDecoration(
-                                color: selected
-                                    ? AppColors.amber
-                                    : AppColors.white,
-                                borderRadius: BorderRadius.circular(50),
-                                border: Border.all(
-                                  color: selected
-                                      ? AppColors.amber
-                                      : AppColors.border,
-                                  width: 1.5,
-                                ),
-                              ),
-                              child: Text(
-                                type,
-                                textAlign: TextAlign.center,
-                                style: TextStyle(
-                                  fontSize: 13,
-                                  fontWeight: FontWeight.w500,
-                                  color: selected
-                                      ? AppColors.white
-                                      : AppColors.textSecondary,
-                                ),
-                              ),
-                            ),
-                          ),
-                        );
-                      }).toList(),
-                    ),
-                    const SizedBox(height: 16),
-                    if (recompenseType == 'Argent')
-                      Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          TextField(
-                            controller: rewardController,
-                            keyboardType: TextInputType.number,
-                            decoration: InputDecoration(
-                              hintText: '500',
-                              hintStyle: const TextStyle(
-                                color: AppColors.textHint,
-                              ),
-                              filled: true,
-                              fillColor: _rewardError != null
-                                  ? AppColors.danger.withValues(alpha: 0.1)
-                                  : AppColors.bg4,
-                              border: OutlineInputBorder(
-                                borderRadius: BorderRadius.circular(50),
-                                borderSide: _rewardError != null
-                                    ? const BorderSide(
-                                        color: AppColors.danger,
-                                        width: 1.5,
-                                      )
-                                    : BorderSide.none,
-                              ),
-                              contentPadding: const EdgeInsets.symmetric(
-                                horizontal: 20,
-                                vertical: 16,
-                              ),
-                              suffixText: 'FCFA',
-                              suffixStyle: const TextStyle(
-                                color: AppColors.textSecondary,
-                                fontWeight: FontWeight.w500,
-                              ),
-                            ),
-                          ),
-                          if (_rewardError != null) ...[
-                            const SizedBox(height: 4),
-                            Text(
-                              _rewardError!,
-                              style: const TextStyle(
-                                color: AppColors.danger,
-                                fontSize: 12,
-                              ),
-                            ),
-                          ],
-                        ],
-                      ),
                     const SizedBox(height: 32),
                   ],
                 ),
               ),
             ),
+
+            // CTA
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
               child: SizedBox(
@@ -413,7 +328,6 @@ class _NouvelleCourseScreenState extends State<NouvelleCourseScreen> {
                           );
                           if (mounted) {
                             final course = _buildCourse();
-                            // ignore: use_build_context_synchronously
                             Navigator.push(
                               context,
                               MaterialPageRoute(
@@ -429,7 +343,7 @@ class _NouvelleCourseScreenState extends State<NouvelleCourseScreen> {
                     foregroundColor: AppColors.black,
                     padding: const EdgeInsets.symmetric(vertical: 16),
                     shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(50),
+                      borderRadius: BorderRadius.circular(14),
                     ),
                   ),
                   child: _isLoading
