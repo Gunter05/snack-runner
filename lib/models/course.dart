@@ -23,6 +23,18 @@ enum CourseStatus {
     CourseStatus.livraison => 'Livraison',
     CourseStatus.terminee => 'Terminée',
   };
+
+  String get dbValue => switch (this) {
+    CourseStatus.enAttente => 'en_attente',
+    CourseStatus.acceptee => 'acceptee',
+    CourseStatus.livraison => 'livraison',
+    CourseStatus.terminee => 'terminee',
+  };
+
+  static CourseStatus fromDb(String? v) => CourseStatus.values.firstWhere(
+    (s) => s.dbValue == v,
+    orElse: () => CourseStatus.enAttente,
+  );
 }
 
 extension CourseStatusX on CourseStatus {
@@ -84,6 +96,30 @@ class Course {
     }
     return rewardType;
   }
+
+  factory Course.fromMap(Map<String, dynamic> m) => Course(
+    id: m['id'].toString(),
+    category: (m['category'] ?? '') as String,
+    title: (m['title'] ?? '') as String,
+    pickupLocation: (m['pickup_location'] ?? '') as String,
+    deliveryLocation: (m['delivery_location'] ?? '') as String,
+    reward: (m['reward'] as num?)?.toDouble() ?? 0,
+    rewardType: 'Argent',
+    status: CourseStatus.fromDb(m['status'] as String?),
+    requesterName: (m['requester_name'] ?? '') as String,
+    runnerName: (m['runner_name'] ?? '') as String,
+  );
+
+  Map<String, dynamic> toInsertMap() => {
+    'category': category,
+    'title': title,
+    'pickup_location': pickupLocation,
+    'delivery_location': deliveryLocation,
+    'reward': reward,
+    'status': status.dbValue,
+    'requester_name': requesterName,
+    'runner_name': runnerName,
+  };
 
   Course copyWith({
     String? id,
