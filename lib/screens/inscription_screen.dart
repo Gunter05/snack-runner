@@ -264,22 +264,16 @@ class _InscriptionScreenState extends ConsumerState<InscriptionScreen> {
                           if (!_validate()) return;
                           setState(() => _isLoading = true);
                           try {
+                            // Le profil public.users est créé par le trigger
+                            // handle_new_user à partir du nom passé ici.
                             final response = await Supabase.instance.client.auth
                                 .signUp(
                                   email: emailController.text.trim(),
                                   password: passwordController.text.trim(),
+                                  data: {'nom': nameController.text.trim()},
                                 );
 
                             if (response.user != null) {
-                              await Supabase.instance.client
-                                  .from('users')
-                                  .upsert({
-                                    'id': response.user!.id,
-                                    'nom': nameController.text.trim(),
-                                    'email': emailController.text.trim(),
-                                    'role': 'requester',
-                                  });
-
                               if (mounted) {
                                 ScaffoldMessenger.of(context).showSnackBar(
                                   const SnackBar(

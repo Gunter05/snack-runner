@@ -8,7 +8,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.4";
 // ── Types ────────────────────────────────────────────────────
 
 export type UserRole = "requester" | "runner" | "admin";
-export type ErrandStatus = "waiting" | "accepted" | "done" | "cancelled";
+export type ErrandStatus = "waiting" | "accepted" | "delivering" | "done" | "cancelled";
 export type RewardType = "argent" | "nourriture";
 
 export type NotificationType =
