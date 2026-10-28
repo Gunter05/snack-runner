@@ -7,6 +7,7 @@ import 'package:snack_runner/providers/course_provider.dart';
 import 'package:snack_runner/providers/user_provider.dart';
 import 'package:snack_runner/services/auth_service.dart';
 import 'package:snack_runner/theme/app_colors.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 enum DashboardMode { requester, runner }
 
@@ -76,6 +77,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                     children: [
                       IconButton(
                         onPressed: () async {
+                          await Supabase.instance.client.auth.signOut();
                           await AuthService().clearToken();
                           ref.read(authProvider.notifier).logout();
                           ref.read(userProvider.notifier).state = '';

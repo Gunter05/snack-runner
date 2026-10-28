@@ -22,6 +22,7 @@
 import {
   ok,
   err,
+  checkSharedSecret,
   getSupabaseAdmin,
   sendFcmNotification,
   type Notification,
@@ -43,12 +44,9 @@ interface ReminderNotification extends Notification {
 Deno.serve(async (req: Request): Promise<Response> => {
   if (req.method !== "POST") return err("Méthode non autorisée.", 405);
 
-  // Vérifier le secret cron (Supabase envoie un Authorization header)
-  const cronSecret = Deno.env.get("CRON_SECRET");
-  if (cronSecret) {
-    const auth = req.headers.get("Authorization");
-    if (auth !== `Bearer ${cronSecret}`) return err("Non autorisé.", 401);
-  }
+  // Vérifier le secret cron (obligatoire)
+  const denied = checkSharedSecret(req, "CRON_SECRET", "Authorization", "Bearer ");
+  if (denied) return denied;
 
   const supabase = getSupabaseAdmin();
   const now = new Date().toISOString();
@@ -117,27 +115,32 @@ Deno.serve(async (req: Request): Promise<Response> => {
       continue;
     }
 
-    // 3. Récupérer le token FCM de cet utilisateur
-    const { data: fcmTokenRow } = await supabase
+    // 3. Récupérer les tokens FCM de cet utilisateur (un par appareil)
+    const { data: fcmTokenRows } = await supabase
       .from("fcm_tokens")
       .select("token")
-      .eq("user_id", reminder.user_id)
-      .maybeSingle();
+      .eq("user_id", reminder.user_id);
 
-    if (fcmTokenRow?.token) {
-      const sent = await sendFcmNotification({
-        token: fcmTokenRow.token,
-        title: "⭐ N'oublie pas de noter !",
-        body:  reminder.message,
-        data: {
-          type:       "rappel_notation",
-          errand_id:  reminder.errand_id,
-          errand_titre: reminder.errand.titre,
-          screen:     `/errands/${reminder.errand_id}/review`,
-        },
-      });
+    if (fcmTokenRows && fcmTokenRows.length > 0) {
+      const results = await Promise.allSettled(
+        fcmTokenRows.map(({ token }) =>
+          sendFcmNotification({
+            token,
+            title: "⭐ N'oublie pas de noter !",
+            body:  reminder.message,
+            data: {
+              type:       "rappel_notation",
+              errand_id:  reminder.errand_id,
+              errand_titre: reminder.errand.titre,
+              screen:     `/errands/${reminder.errand_id}/review`,
+            },
+          })
+        )
+      );
 
-      if (sent) sentCount++;
+      sentCount += results.filter(
+        (r) => r.status === "fulfilled" && r.value === true
+      ).length;
     } else {
       console.log(`Pas de token FCM pour user ${reminder.user_id} — push ignoré.`);
     }
@@ -181,14 +184,18 @@ Deno.serve(async (req: Request): Promise<Response> => {
 //    $$
 //      SELECT net.http_post(
 //        url     := 'https://<project-ref>.supabase.co/functions/v1/send-rating-reminder',
-//        headers := '{"Authorization": "Bearer <CRON_SECRET>", "Content-Type": "application/json"}'::jsonb,
+//        headers := jsonb_build_object(
+//          'Content-Type',  'application/json',
+//          'Authorization', 'Bearer ' || (select decrypted_secret from vault.decrypted_secrets where name = 'cron_secret')
+//        ),
 //        body    := '{}'::jsonb
 //      ) AS request_id;
 //    $$
 //  );
 //
-//  Remplace <project-ref> par ton ID de projet Supabase
-//  et <CRON_SECRET> par la valeur de ton secret CRON_SECRET.
+//  Remplace <project-ref> par ton ID de projet Supabase.
+//  Stocke le secret dans Vault plutôt qu'en clair dans cron.job :
+//    SELECT vault.create_secret('<valeur de CRON_SECRET>', 'cron_secret');
 //
 //  Pour vérifier que le cron tourne :
 //  SELECT * FROM cron.job_run_details ORDER BY start_time DESC LIMIT 10;

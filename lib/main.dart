@@ -18,7 +18,13 @@ Future<void> main() async {
     anonKey: dotenv.env['SUPABASE_ANON_KEY']!,
   );
 
-  final token = await AuthService().getToken();
+  // Le nom stocké localement ne suffit pas : il faut aussi une session
+  // Supabase, sinon les requêtes partiraient en anon.
+  var token = await AuthService().getToken();
+  if (Supabase.instance.client.auth.currentSession == null && token != null) {
+    await AuthService().clearToken();
+    token = null;
+  }
   final isLoggedIn = token != null;
 
   runApp(

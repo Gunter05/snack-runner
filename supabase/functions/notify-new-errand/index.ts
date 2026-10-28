@@ -21,6 +21,7 @@
 import {
   ok,
   err,
+  checkSharedSecret,
   getSupabaseAdmin,
   sendFcmNotification,
   type Errand,
@@ -43,12 +44,9 @@ Deno.serve(async (req: Request): Promise<Response> => {
   // Vérifier la méthode
   if (req.method !== "POST") return err("Méthode non autorisée.", 405);
 
-  // Vérifier le secret webhook (protection contre les appels non autorisés)
-  const webhookSecret = Deno.env.get("WEBHOOK_SECRET");
-  if (webhookSecret) {
-    const authHeader = req.headers.get("x-supabase-webhook-secret");
-    if (authHeader !== webhookSecret) return err("Non autorisé.", 401);
-  }
+  // Vérifier le secret webhook (obligatoire)
+  const denied = checkSharedSecret(req, "WEBHOOK_SECRET", "x-supabase-webhook-secret");
+  if (denied) return denied;
 
   // Parser le body
   let payload: WebhookPayload;
@@ -63,14 +61,27 @@ Deno.serve(async (req: Request): Promise<Response> => {
     return ok({ skipped: true, reason: "Événement ignoré." });
   }
 
-  const errand = payload.record;
+  if (!payload.record?.id) return err("Payload sans identifiant de course.");
+
+  const supabase = getSupabaseAdmin();
+
+  // Relire la course en base plutôt que faire confiance au payload :
+  // le texte envoyé aux runners vient ainsi toujours de la base.
+  const { data: errand, error: errandError } = await supabase
+    .from("errands")
+    .select("*")
+    .eq("id", payload.record.id)
+    .single<Errand>();
+
+  if (errandError || !errand) {
+    console.error("Course introuvable:", errandError);
+    return err("Course introuvable.", 404);
+  }
 
   // Ignorer les courses qui ne sont pas en attente
   if (errand.status !== "waiting") {
     return ok({ skipped: true, reason: "Course non en attente." });
   }
-
-  const supabase = getSupabaseAdmin();
 
   // 1. Récupérer le profil du requester
   const { data: requester, error: requesterError } = await supabase
