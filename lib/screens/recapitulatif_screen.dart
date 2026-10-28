@@ -1,24 +1,49 @@
 import 'package:flutter/material.dart';
-import 'package:snack_runner/data/app_data.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import 'package:snack_runner/models/course.dart';
-import 'package:snack_runner/screens/suivi_screen.dart';
+import 'package:snack_runner/providers/course_provider.dart';
+import 'package:snack_runner/providers/user_provider.dart';
 import 'package:snack_runner/theme/app_colors.dart';
 
-class RecapitulatifScreen extends StatefulWidget {
+class RecapitulatifScreen extends ConsumerStatefulWidget {
   final Course course;
 
   const RecapitulatifScreen({super.key, required this.course});
 
   @override
-  State<RecapitulatifScreen> createState() => _RecapitulatifScreenState();
+  ConsumerState<RecapitulatifScreen> createState() =>
+      _RecapitulatifScreenState();
 }
 
-class _RecapitulatifScreenState extends State<RecapitulatifScreen> {
+class _RecapitulatifScreenState extends ConsumerState<RecapitulatifScreen> {
   bool _isLoading = false;
+
+  Future<void> _publish() async {
+    setState(() => _isLoading = true);
+    try {
+      final userName = ref.read(userProvider);
+      final course = widget.course.requesterName.isEmpty
+          ? widget.course.copyWith(requesterName: userName)
+          : widget.course;
+      final id = await ref.read(courseProvider.notifier).addCourse(course);
+      if (!mounted) return;
+      context.pushReplacement('/suivi/$id');
+    } catch (_) {
+      if (!mounted) return;
+      setState(() => _isLoading = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Impossible de publier la course. Vérifie ta connexion et réessaie.',
+          ),
+        ),
+      );
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
-    final appData = AppData.instance;
     final details = [
       {'label': 'Type', 'value': widget.course.category},
       {'label': 'Commande', 'value': widget.course.title},
@@ -37,7 +62,7 @@ class _RecapitulatifScreenState extends State<RecapitulatifScreen> {
               child: Row(
                 children: [
                   IconButton(
-                    onPressed: () => Navigator.pop(context),
+                    onPressed: () => context.pop(),
                     icon: const Icon(
                       Icons.arrow_back_ios_new,
                       color: AppColors.textPrimary,
@@ -168,27 +193,7 @@ class _RecapitulatifScreenState extends State<RecapitulatifScreen> {
                   SizedBox(
                     width: double.infinity,
                     child: ElevatedButton(
-                      onPressed: _isLoading
-                          ? null
-                          : () async {
-                              setState(() => _isLoading = true);
-                              await Future.delayed(
-                                const Duration(milliseconds: 600),
-                              );
-                              if (mounted) {
-                                if (!appData.isPublished(widget.course.id)) {
-                                  appData.publishCourse(widget.course);
-                                }
-                                // ignore: use_build_context_synchronously
-                                Navigator.pushReplacement(
-                                  context,
-                                  MaterialPageRoute(
-                                    builder: (_) =>
-                                        SuiviScreen(courseId: widget.course.id),
-                                  ),
-                                );
-                              }
-                            },
+                      onPressed: _isLoading ? null : _publish,
                       style: ElevatedButton.styleFrom(
                         backgroundColor: AppColors.amber,
                         foregroundColor: AppColors.black,
@@ -221,9 +226,7 @@ class _RecapitulatifScreenState extends State<RecapitulatifScreen> {
                   SizedBox(
                     width: double.infinity,
                     child: OutlinedButton(
-                      onPressed: _isLoading
-                          ? null
-                          : () => Navigator.pop(context),
+                      onPressed: _isLoading ? null : () => context.pop(),
                       style: OutlinedButton.styleFrom(
                         foregroundColor: AppColors.amber,
                         side: const BorderSide(

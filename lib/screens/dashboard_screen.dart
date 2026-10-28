@@ -20,13 +20,22 @@ class DashboardScreen extends ConsumerStatefulWidget {
 class _DashboardScreenState extends ConsumerState<DashboardScreen> {
   DashboardMode _mode = DashboardMode.requester;
 
+  Future<void> _logout() async {
+    await AuthService().clearToken();
+    await ref.read(authProvider.notifier).logout();
+    if (!mounted) return;
+    context.go('/login');
+  }
+
   @override
   Widget build(BuildContext context) {
     final currentUser = ref.watch(userProvider);
     final courses = ref.watch(courseProvider);
-    final myCourses = courses
-        .where((course) => course.requesterName == currentUser)
-        .toList();
+    final hasUser = currentUser.isNotEmpty;
+
+    final myCourses = hasUser
+        ? courses.where((c) => c.requesterName == currentUser).toList()
+        : <Course>[];
     final activeList = myCourses
         .where(
           (c) =>
@@ -40,6 +49,27 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
         ? myCourses.first
         : null;
     final recentCourses = myCourses.take(3).toList();
+
+    final availableCourses = hasUser
+        ? courses
+              .where(
+                (c) =>
+                    c.status == CourseStatus.enAttente &&
+                    c.requesterName != currentUser,
+              )
+              .toList()
+        : <Course>[];
+    final missionList = hasUser
+        ? courses
+              .where(
+                (c) =>
+                    c.runnerName == currentUser &&
+                    (c.status == CourseStatus.acceptee ||
+                        c.status == CourseStatus.livraison),
+              )
+              .toList()
+        : <Course>[];
+    final myMission = missionList.isNotEmpty ? missionList.first : null;
 
     return Scaffold(
       backgroundColor: AppColors.bg0,
@@ -75,12 +105,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                   Row(
                     children: [
                       IconButton(
-                        onPressed: () async {
-                          await AuthService().clearToken();
-                          ref.read(authProvider.notifier).logout();
-                          ref.read(userProvider.notifier).state = '';
-                          context.go('/login');
-                        },
+                        onPressed: _logout,
                         icon: const Icon(
                           Icons.logout,
                           color: AppColors.textSecondary,
@@ -157,7 +182,10 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                         recentCourses: recentCourses,
                         totalCourses: myCourses.length,
                       )
-                    : const _RunnerView(),
+                    : _RunnerView(
+                        myMission: myMission,
+                        availableCourses: availableCourses,
+                      ),
               ),
             ),
 
@@ -169,7 +197,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                 child: ElevatedButton.icon(
                   onPressed: () => _mode == DashboardMode.requester
                       ? context.push('/nouvelle-course')
-                      : null,
+                      : context.push('/courses'),
                   icon: const Icon(Icons.add, size: 18),
                   label: Text(
                     _mode == DashboardMode.requester
@@ -212,7 +240,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                     label: 'Mes courses',
                     icon: Icons.list_alt_outlined,
                     active: false,
-                    onTap: () => context.go('/courses'),
+                    onTap: () => context.push('/courses'),
                   ),
                   _TabItem(
                     label: 'Profil',
@@ -250,7 +278,12 @@ class _RequesterView extends StatelessWidget {
       children: [
         const _SectionLabel('Course en cours'),
         const SizedBox(height: 8),
-        _ActiveCourseCard(course: activeCourse),
+        _ActiveCourseCard(
+          course: activeCourse,
+          onTap: activeCourse == null
+              ? null
+              : () => context.push('/suivi/${activeCourse!.id}'),
+        ),
         const SizedBox(height: 16),
 
         // Stats
@@ -280,7 +313,12 @@ class _RequesterView extends StatelessWidget {
         if (recentCourses.isEmpty)
           _EmptyState(onTap: () => context.push('/nouvelle-course'))
         else
-          ...recentCourses.map((c) => _CourseCard(course: c)),
+          ...recentCourses.map(
+            (c) => _CourseCard(
+              course: c,
+              onTap: () => context.push('/suivi/${c.id}'),
+            ),
+          ),
         const SizedBox(height: 24),
       ],
     );
@@ -290,47 +328,69 @@ class _RequesterView extends StatelessWidget {
 // ── Runner View ───────────────────────────────────────────────────────────────
 
 class _RunnerView extends StatelessWidget {
-  const _RunnerView();
+  final Course? myMission;
+  final List<Course> availableCourses;
+
+  const _RunnerView({required this.myMission, required this.availableCourses});
 
   @override
   Widget build(BuildContext context) {
+    final shown = availableCourses.take(3).toList();
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
+        if (myMission != null) ...[
+          const _SectionLabel('Ma mission en cours'),
+          const SizedBox(height: 8),
+          _CourseCard(
+            course: myMission!,
+            onTap: () => context.push('/mission/${myMission!.id}'),
+          ),
+          const SizedBox(height: 16),
+        ],
         const _SectionLabel('Courses disponibles'),
         const SizedBox(height: 8),
-        Container(
-          padding: const EdgeInsets.all(28),
-          decoration: BoxDecoration(
-            color: AppColors.bg2,
-            borderRadius: BorderRadius.circular(18),
-            border: Border.all(color: AppColors.border, width: 0.5),
-          ),
-          child: const Center(
-            child: Column(
-              children: [
-                Icon(Icons.directions_run, color: AppColors.amber, size: 36),
-                SizedBox(height: 12),
-                Text(
-                  'Aucune course disponible',
-                  style: TextStyle(
-                    fontSize: 15,
-                    fontWeight: FontWeight.w600,
-                    color: AppColors.textPrimary,
+        if (shown.isEmpty)
+          Container(
+            padding: const EdgeInsets.all(28),
+            decoration: BoxDecoration(
+              color: AppColors.bg2,
+              borderRadius: BorderRadius.circular(18),
+              border: Border.all(color: AppColors.border, width: 0.5),
+            ),
+            child: const Center(
+              child: Column(
+                children: [
+                  Icon(Icons.directions_run, color: AppColors.amber, size: 36),
+                  SizedBox(height: 12),
+                  Text(
+                    'Aucune course disponible',
+                    style: TextStyle(
+                      fontSize: 15,
+                      fontWeight: FontWeight.w600,
+                      color: AppColors.textPrimary,
+                    ),
                   ),
-                ),
-                SizedBox(height: 4),
-                Text(
-                  'Les nouvelles courses apparaîtront ici',
-                  style: TextStyle(
-                    fontSize: 13,
-                    color: AppColors.textSecondary,
+                  SizedBox(height: 4),
+                  Text(
+                    'Les nouvelles courses apparaîtront ici',
+                    style: TextStyle(
+                      fontSize: 13,
+                      color: AppColors.textSecondary,
+                    ),
                   ),
-                ),
-              ],
+                ],
+              ),
+            ),
+          )
+        else
+          ...shown.map(
+            (c) => _CourseCard(
+              course: c,
+              onTap: () => context.push('/course-detail/${c.id}', extra: c),
             ),
           ),
-        ),
         const SizedBox(height: 24),
       ],
     );
@@ -468,7 +528,8 @@ class _StatCard extends StatelessWidget {
 
 class _ActiveCourseCard extends StatelessWidget {
   final Course? course;
-  const _ActiveCourseCard({required this.course});
+  final VoidCallback? onTap;
+  const _ActiveCourseCard({required this.course, this.onTap});
 
   @override
   Widget build(BuildContext context) {
@@ -506,84 +567,88 @@ class _ActiveCourseCard extends StatelessWidget {
         ? 2
         : 3;
 
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: AppColors.bg2,
-        borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: const Color(0xFF3a2e10), width: 1),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Expanded(
-                child: Text(
-                  course!.title,
-                  style: const TextStyle(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w600,
-                    color: AppColors.textPrimary,
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: AppColors.bg2,
+          borderRadius: BorderRadius.circular(18),
+          border: Border.all(color: const Color(0xFF3a2e10), width: 1),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Expanded(
+                  child: Text(
+                    course!.title,
+                    style: const TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w600,
+                      color: AppColors.textPrimary,
+                    ),
                   ),
                 ),
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 10,
+                    vertical: 4,
+                  ),
+                  decoration: BoxDecoration(
+                    color: AppColors.amber.withValues(alpha: 0.15),
+                    borderRadius: BorderRadius.circular(99),
+                  ),
+                  child: Text(
+                    course!.status.label,
+                    style: const TextStyle(
+                      fontSize: 10,
+                      fontWeight: FontWeight.w700,
+                      color: AppColors.amber,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 6),
+            Text(
+              'Récompense · ${course!.rewardLabel}',
+              style: const TextStyle(
+                fontSize: 12,
+                color: AppColors.textSecondary,
               ),
-              Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 10,
-                  vertical: 4,
+            ),
+            const SizedBox(height: 14),
+            ClipRRect(
+              borderRadius: BorderRadius.circular(99),
+              child: LinearProgressIndicator(
+                value: (stepIndex + 1) / steps.length,
+                backgroundColor: AppColors.bg3,
+                valueColor: const AlwaysStoppedAnimation<Color>(
+                  AppColors.amber,
                 ),
-                decoration: BoxDecoration(
-                  color: AppColors.amber.withValues(alpha: 0.15),
-                  borderRadius: BorderRadius.circular(99),
-                ),
-                child: Text(
-                  course!.status.label,
-                  style: const TextStyle(
+                minHeight: 4,
+              ),
+            ),
+            const SizedBox(height: 8),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: steps.asMap().entries.map((e) {
+                final active = e.key == stepIndex;
+                return Text(
+                  e.value,
+                  style: TextStyle(
                     fontSize: 10,
-                    fontWeight: FontWeight.w700,
-                    color: AppColors.amber,
+                    fontWeight: active ? FontWeight.w700 : FontWeight.normal,
+                    color: active ? AppColors.amber : AppColors.textSecondary,
                   ),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 6),
-          Text(
-            'Récompense · ${course!.rewardLabel}',
-            style: const TextStyle(
-              fontSize: 12,
-              color: AppColors.textSecondary,
+                );
+              }).toList(),
             ),
-          ),
-          const SizedBox(height: 14),
-          // Progress bar
-          ClipRRect(
-            borderRadius: BorderRadius.circular(99),
-            child: LinearProgressIndicator(
-              value: (stepIndex + 1) / steps.length,
-              backgroundColor: AppColors.bg3,
-              valueColor: const AlwaysStoppedAnimation<Color>(AppColors.amber),
-              minHeight: 4,
-            ),
-          ),
-          const SizedBox(height: 8),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: steps.asMap().entries.map((e) {
-              final active = e.key == stepIndex;
-              return Text(
-                e.value,
-                style: TextStyle(
-                  fontSize: 10,
-                  fontWeight: active ? FontWeight.w700 : FontWeight.normal,
-                  color: active ? AppColors.amber : AppColors.textSecondary,
-                ),
-              );
-            }).toList(),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
@@ -666,53 +731,57 @@ class _EmptyState extends StatelessWidget {
 
 class _CourseCard extends StatelessWidget {
   final Course course;
-  const _CourseCard({required this.course});
+  final VoidCallback? onTap;
+  const _CourseCard({required this.course, this.onTap});
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      margin: const EdgeInsets.only(bottom: 8),
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-      decoration: BoxDecoration(
-        color: AppColors.bg2,
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: AppColors.border, width: 0.5),
-      ),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  course.title,
-                  style: const TextStyle(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w600,
-                    color: AppColors.textPrimary,
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        margin: const EdgeInsets.only(bottom: 8),
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+        decoration: BoxDecoration(
+          color: AppColors.bg2,
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(color: AppColors.border, width: 0.5),
+        ),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    course.title,
+                    style: const TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w600,
+                      color: AppColors.textPrimary,
+                    ),
                   ),
-                ),
-                const SizedBox(height: 2),
-                Text(
-                  course.status.label,
-                  style: const TextStyle(
-                    fontSize: 12,
-                    color: AppColors.textSecondary,
+                  const SizedBox(height: 2),
+                  Text(
+                    course.status.label,
+                    style: const TextStyle(
+                      fontSize: 12,
+                      color: AppColors.textSecondary,
+                    ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
-          ),
-          Text(
-            course.rewardLabel,
-            style: const TextStyle(
-              fontSize: 13,
-              fontWeight: FontWeight.w600,
-              color: AppColors.amber,
+            Text(
+              course.rewardLabel,
+              style: const TextStyle(
+                fontSize: 13,
+                fontWeight: FontWeight.w600,
+                color: AppColors.amber,
+              ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
