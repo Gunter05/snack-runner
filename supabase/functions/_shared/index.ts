@@ -3,7 +3,7 @@
 //  Utilitaires communs à toutes les Edge Functions
 // ============================================================
 
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.4";
 
 // ── Types ────────────────────────────────────────────────────
 
@@ -70,6 +70,40 @@ export function getSupabaseAdmin() {
   return createClient(url, key, {
     auth: { persistSession: false },
   });
+}
+
+// ── Authentification des appels serveur ─────────────────────
+//
+//  Les webhooks et le cron passent un secret partagé dans un header.
+//  Si le secret n'est pas configuré, on refuse l'appel : sans ça,
+//  n'importe qui possédant la clé anon (publique, embarquée dans
+//  l'app) pourrait déclencher la fonction.
+
+export function checkSharedSecret(
+  req: Request,
+  envName: string,
+  headerName: string,
+  prefix = "",
+): Response | null {
+  const secret = Deno.env.get(envName);
+  if (!secret) {
+    console.error(`Secret ${envName} non configuré — appel refusé.`);
+    return err("Fonction non configurée.", 500);
+  }
+  const received = req.headers.get(headerName) ?? "";
+  if (!timingSafeEqual(received, `${prefix}${secret}`)) {
+    return err("Non autorisé.", 401);
+  }
+  return null;
+}
+
+function timingSafeEqual(a: string, b: string): boolean {
+  const enc = new TextEncoder();
+  const ab = enc.encode(a);
+  const bb = enc.encode(b);
+  let diff = ab.length ^ bb.length;
+  for (let i = 0; i < bb.length; i++) diff |= (ab[i] ?? 0) ^ bb[i];
+  return diff === 0;
 }
 
 // ── Réponses HTTP ────────────────────────────────────────────
