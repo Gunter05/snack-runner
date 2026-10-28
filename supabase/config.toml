@@ -1,0 +1,16 @@
+# Configuration minimale du CLI Supabase : les valeurs absentes
+# reprennent les défauts du CLI.
+project_id = "snack-runner"
+
+# Ces fonctions sont appelées par des triggers et par pg_cron, pas par
+# l'app. Elles s'authentifient avec un secret partagé (WEBHOOK_SECRET,
+# CRON_SECRET) vérifié dans le code, pas avec un JWT : la passerelle
+# rejetait le cron avec « Invalid JWT ».
+[functions.notify-new-errand]
+verify_jwt = false
+
+[functions.notify-errand-status]
+verify_jwt = false
+
+[functions.send-rating-reminder]
+verify_jwt = false
