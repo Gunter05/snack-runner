@@ -1,6 +1,10 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- Absente du manifeste principal par défaut : sans elle, les builds
+         release ne peuvent pas joindre Supabase. -->
+    <uses-permission android:name="android.permission.INTERNET"/>
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>
     <application
-        android:label="snack_runner"
+        android:label="SnackRunner"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher">
         <activity

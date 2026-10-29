@@ -45,3 +45,10 @@ app.*.map.json
 /android/app/release
 
 .env
+.env.json
+!.env.example
+
+# Signature Android
+/android/key.properties
+*.jks
+*.keystore

@@ -1,221 +1,139 @@
 import 'package:flutter/material.dart';
-import 'package:snack_runner/data/app_data.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import 'package:snack_runner/models/course.dart';
-import 'package:snack_runner/screens/fin_mission_screen.dart';
+import 'package:snack_runner/providers/auth_provider.dart';
+import 'package:snack_runner/providers/course_provider.dart';
 import 'package:snack_runner/theme/app_colors.dart';
+import 'package:snack_runner/widgets/common.dart';
 
-class MissionScreen extends StatefulWidget {
+class MissionScreen extends ConsumerStatefulWidget {
   final String courseId;
 
   const MissionScreen({super.key, required this.courseId});
 
   @override
-  State<MissionScreen> createState() => _MissionScreenState();
+  ConsumerState<MissionScreen> createState() => _MissionScreenState();
 }
 
-class _MissionScreenState extends State<MissionScreen> {
+class _MissionScreenState extends ConsumerState<MissionScreen> {
   bool _isLoading = false;
+
+  Future<void> _startDelivery(Course course) async {
+    setState(() => _isLoading = true);
+    try {
+      await ref.read(courseRepositoryProvider).startDelivery(course.id);
+    } catch (error) {
+      if (mounted) showErrorSnackBar(context, error);
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
-    final appData = AppData.instance;
+    final userId = ref.watch(currentUserIdProvider).valueOrNull;
 
     return Scaffold(
       backgroundColor: AppColors.bg0,
-      appBar: AppBar(
-        backgroundColor: AppColors.bg0,
-        foregroundColor: AppColors.textPrimary,
-        elevation: 0,
-        title: const Text('Mission'),
-      ),
-      body: ValueListenableBuilder<List<Course>>(
-        valueListenable: appData.publishedCourses,
-        builder: (context, courses, _) {
-          final course = appData.courseById(widget.courseId);
-          if (course == null) {
-            return const Center(child: Text('Course introuvable.'));
-          }
-
-          final isRunner = course.runnerName == appData.currentUser.value;
+      appBar: darkAppBar('Mission'),
+      body: CourseLoader(
+        courseId: widget.courseId,
+        builder: (context, course) {
+          final isRunner = course.isRunner(userId);
           final canStart = course.status == CourseStatus.acceptee && isRunner;
           final canComplete =
               course.status == CourseStatus.livraison && isRunner;
+          final description = course.description?.trim() ?? '';
 
-          return Padding(
-            padding: const EdgeInsets.all(20),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  course.title,
-                  style: const TextStyle(
-                    fontSize: 20,
-                    fontWeight: FontWeight.bold,
-                    color: AppColors.textPrimary,
+          return SafeArea(
+            child: Padding(
+              padding: const EdgeInsets.all(20),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    course.title,
+                    style: const TextStyle(
+                      fontSize: 20,
+                      fontWeight: FontWeight.bold,
+                      color: AppColors.textPrimary,
+                    ),
                   ),
-                ),
-                const SizedBox(height: 8),
-                Text(
-                  course.rewardLabel,
-                  style: const TextStyle(
-                    fontSize: 14,
-                    color: AppColors.textSecondary,
-                  ),
-                ),
-                const SizedBox(height: 24),
-                _InfoRow(label: 'Retrait', value: course.pickupLocation),
-                _InfoRow(label: 'Livraison', value: course.deliveryLocation),
-                _InfoRow(label: 'Statut', value: course.status.label),
-                if (course.runnerName.isNotEmpty)
-                  _InfoRow(label: 'Runner', value: course.runnerName),
-                const Spacer(),
-                if (!isRunner)
-                  const Text(
-                    'Tu n es pas le runner de cette course.',
-                    style: TextStyle(
+                  const SizedBox(height: 8),
+                  Text(
+                    course.rewardLabel,
+                    style: const TextStyle(
                       fontSize: 14,
                       color: AppColors.textSecondary,
                     ),
                   ),
-                if (canStart)
-                  SizedBox(
-                    width: double.infinity,
-                    child: ElevatedButton(
-                      onPressed: _isLoading
-                          ? null
-                          : () async {
-                              setState(() => _isLoading = true);
-                              await Future.delayed(
-                                const Duration(milliseconds: 600),
-                              );
-                              if (mounted) {
-                                appData.startDelivery(course.id);
-                                setState(() => _isLoading = false);
-                              }
-                            },
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: AppColors.amber,
-                        foregroundColor: AppColors.black,
-                        padding: const EdgeInsets.symmetric(vertical: 16),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(50),
-                        ),
-                      ),
-                      child: _isLoading
-                          ? const SizedBox(
-                              height: 20,
-                              width: 20,
-                              child: CircularProgressIndicator(
-                                valueColor: AlwaysStoppedAnimation<Color>(
-                                  AppColors.white,
-                                ),
-                                strokeWidth: 2,
-                              ),
-                            )
-                          : const Text(
-                              'Démarrer la livraison',
-                              style: TextStyle(
-                                fontSize: 16,
-                                fontWeight: FontWeight.w600,
-                              ),
+                  const SizedBox(height: 24),
+                  Expanded(
+                    child: SingleChildScrollView(
+                      child: Column(
+                        children: [
+                          if (description.isNotEmpty &&
+                              description != course.title)
+                            InfoRow(
+                              label: 'Commande',
+                              value: description,
+                              labelWidth: 100,
                             ),
+                          InfoRow(
+                            label: 'Retrait',
+                            value: course.pickupLocation,
+                            labelWidth: 100,
+                          ),
+                          InfoRow(
+                            label: 'Livraison',
+                            value: course.deliveryLocation,
+                            labelWidth: 100,
+                          ),
+                          InfoRow(
+                            label: 'Demandeur',
+                            value: course.requesterName,
+                            labelWidth: 100,
+                          ),
+                          InfoRow(
+                            label: 'Statut',
+                            value: course.status.label,
+                            labelWidth: 100,
+                          ),
+                        ],
+                      ),
                     ),
                   ),
-                if (canComplete)
-                  SizedBox(
-                    width: double.infinity,
-                    child: ElevatedButton(
-                      onPressed: _isLoading
-                          ? null
-                          : () async {
-                              setState(() => _isLoading = true);
-                              await Future.delayed(
-                                const Duration(milliseconds: 300),
-                              );
-                              if (mounted) {
-                                setState(() => _isLoading = false);
-                                // ignore: use_build_context_synchronously
-                                Navigator.push(
-                                  context,
-                                  MaterialPageRoute(
-                                    builder: (_) =>
-                                        FinMissionScreen(courseId: course.id),
-                                  ),
-                                );
-                              }
-                            },
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: AppColors.amber,
-                        foregroundColor: AppColors.black,
-                        padding: const EdgeInsets.symmetric(vertical: 16),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(50),
-                        ),
+                  if (!isRunner)
+                    const Text(
+                      "Tu n'es pas le runner de cette course.",
+                      style: TextStyle(
+                        fontSize: 14,
+                        color: AppColors.textSecondary,
                       ),
-                      child: _isLoading
-                          ? const SizedBox(
-                              height: 20,
-                              width: 20,
-                              child: CircularProgressIndicator(
-                                valueColor: AlwaysStoppedAnimation<Color>(
-                                  AppColors.white,
-                                ),
-                                strokeWidth: 2,
-                              ),
-                            )
-                          : const Text(
-                              'Terminer la mission',
-                              style: TextStyle(
-                                fontSize: 16,
-                                fontWeight: FontWeight.w600,
-                              ),
-                            ),
                     ),
-                  ),
-              ],
+                  if (canStart)
+                    PrimaryButton(
+                      label: 'Démarrer la livraison',
+                      isLoading: _isLoading,
+                      onPressed: () => _startDelivery(course),
+                    ),
+                  if (canComplete)
+                    PrimaryButton(
+                      label: 'Terminer la mission',
+                      onPressed: () =>
+                          context.push('/fin-mission/${course.id}'),
+                    ),
+                  if (isRunner && course.status == CourseStatus.terminee)
+                    PrimaryButton(
+                      label: "Retour à l'accueil",
+                      onPressed: () => context.go('/dashboard'),
+                    ),
+                ],
+              ),
             ),
           );
         },
-      ),
-    );
-  }
-}
-
-class _InfoRow extends StatelessWidget {
-  final String label;
-  final String value;
-
-  const _InfoRow({required this.label, required this.value});
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 16),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          SizedBox(
-            width: 100,
-            child: Text(
-              label,
-              style: const TextStyle(
-                fontSize: 13,
-                color: AppColors.textSecondary,
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-          ),
-          Expanded(
-            child: Text(
-              value,
-              style: const TextStyle(
-                fontSize: 14,
-                color: AppColors.textPrimary,
-                fontWeight: FontWeight.w500,
-              ),
-            ),
-          ),
-        ],
       ),
     );
   }

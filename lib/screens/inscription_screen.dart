@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:snack_runner/core/errors.dart';
+import 'package:snack_runner/core/validators.dart';
+import 'package:snack_runner/providers/auth_provider.dart';
 import 'package:snack_runner/theme/app_colors.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
 
 class InscriptionScreen extends ConsumerStatefulWidget {
   const InscriptionScreen({super.key});
@@ -29,36 +31,50 @@ class _InscriptionScreenState extends ConsumerState<InscriptionScreen> {
 
   bool _validate() {
     setState(() {
-      _nameError = nameController.text.trim().isEmpty ? 'Nom requis' : null;
-
-      final email = emailController.text.trim();
-      if (email.isEmpty) {
-        _emailError = 'Email requis';
-      } else if (!email.contains('@')) {
-        _emailError = 'Email invalide';
-      } else {
-        _emailError = null;
-      }
-
-      final password = passwordController.text.trim();
-      if (password.isEmpty) {
-        _passwordError = 'Mot de passe requis';
-      } else if (password.length < 6) {
-        _passwordError = 'Minimum 6 caractères';
-      } else {
-        _passwordError = null;
-      }
-
-      _confirmPasswordError =
-          confirmPasswordController.text != passwordController.text
-          ? 'Les mots de passe ne correspondent pas'
-          : null;
+      _nameError = Validators.required(nameController.text, 'Nom requis');
+      _emailError = Validators.email(emailController.text);
+      _passwordError = Validators.newPassword(passwordController.text);
+      _confirmPasswordError = Validators.confirmPassword(
+        passwordController.text,
+        confirmPasswordController.text,
+      );
     });
 
     return _nameError == null &&
         _emailError == null &&
         _passwordError == null &&
         _confirmPasswordError == null;
+  }
+
+  Future<void> _signUp() async {
+    FocusScope.of(context).unfocus();
+    if (!_validate()) return;
+    setState(() => _isLoading = true);
+    try {
+      final hasSession = await ref
+          .read(authRepositoryProvider)
+          .signUp(
+            nom: nameController.text,
+            email: emailController.text,
+            password: passwordController.text,
+          );
+      if (!mounted) return;
+      if (hasSession) {
+        context.go('/dashboard');
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Compte créé ! Vérifie ton email pour l\'activer.'),
+            backgroundColor: AppColors.success,
+          ),
+        );
+        context.go('/login');
+      }
+    } catch (error) {
+      if (mounted) setState(() => _emailError = friendlyError(error));
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
+    }
   }
 
   @override
@@ -258,44 +274,7 @@ class _InscriptionScreenState extends ConsumerState<InscriptionScreen> {
               SizedBox(
                 width: double.infinity,
                 child: ElevatedButton(
-                  onPressed: _isLoading
-                      ? null
-                      : () async {
-                          if (!_validate()) return;
-                          setState(() => _isLoading = true);
-                          try {
-                            // Le profil public.users est créé par le trigger
-                            // handle_new_user à partir du nom passé ici.
-                            final response = await Supabase.instance.client.auth
-                                .signUp(
-                                  email: emailController.text.trim(),
-                                  password: passwordController.text.trim(),
-                                  data: {'nom': nameController.text.trim()},
-                                );
-
-                            if (response.user != null) {
-                              if (mounted) {
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  const SnackBar(
-                                    content: Text(
-                                      'Compte créé ! Vérifie ton email.',
-                                    ),
-                                    backgroundColor: Colors.green,
-                                  ),
-                                );
-                                context.go('/login');
-                              }
-                            }
-                          } catch (e) {
-                            if (mounted) {
-                              setState(
-                                () => _emailError = 'Erreur : ${e.toString()}',
-                              );
-                            }
-                          } finally {
-                            if (mounted) setState(() => _isLoading = false);
-                          }
-                        },
+                  onPressed: _isLoading ? null : _signUp,
                   style: ElevatedButton.styleFrom(
                     backgroundColor: AppColors.amber,
                     foregroundColor: AppColors.black,

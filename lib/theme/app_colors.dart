@@ -34,4 +34,6 @@ class AppColors {
   static const Color statusDeliveringText = black;
   static const Color statusCompletedBg = Color(0xFF155A47);
   static const Color statusCompletedText = success;
+  static const Color statusCancelledBg = Color(0xFF3A1E1E);
+  static const Color statusCancelledText = danger;
 }

@@ -30,7 +30,7 @@ class CourseCard extends StatelessWidget {
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
                   Text(
-                    course.category,
+                    course.category.label,
                     style: const TextStyle(
                       fontSize: 12,
                       color: AppColors.textSecondary,
