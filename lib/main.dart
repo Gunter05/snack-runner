@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_web_plugins/url_strategy.dart';
 import 'package:snack_runner/core/config.dart';
@@ -79,6 +80,11 @@ class SnackRunnerApp extends ConsumerWidget {
       title: 'SnackRunner',
       debugShowCheckedModeBanner: false,
       theme: AppTheme.theme,
+      // Textes Material (« Retour », « Coller »…) et attribut lang de la
+      // page web en français.
+      locale: const Locale('fr'),
+      supportedLocales: const [Locale('fr')],
+      localizationsDelegates: GlobalMaterialLocalizations.delegates,
       scaffoldMessengerKey: scaffoldMessengerKey,
       routerConfig: ref.watch(routerProvider),
       builder: (context, child) => ColoredBox(
