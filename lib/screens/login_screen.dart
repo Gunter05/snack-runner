@@ -1,11 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:snack_runner/core/errors.dart';
+import 'package:snack_runner/core/validators.dart';
 import 'package:snack_runner/providers/auth_provider.dart';
-import 'package:snack_runner/providers/user_provider.dart';
-import 'package:snack_runner/services/auth_service.dart';
 import 'package:snack_runner/theme/app_colors.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
 
 class LoginScreen extends ConsumerStatefulWidget {
   const LoginScreen({super.key});
@@ -63,21 +62,33 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
     super.dispose();
   }
 
-  String get userName {
-    final raw = emailController.text.trim();
-    if (raw.isEmpty) return 'Runner';
-    if (raw.contains('@')) return raw.split('@').first;
-    return raw;
-  }
-
   bool _validate() {
     setState(() {
-      _emailError = emailController.text.trim().isEmpty ? 'Email requis' : null;
-      _passwordError = passwordController.text.trim().isEmpty
-          ? 'Mot de passe requis'
-          : null;
+      _emailError = Validators.email(emailController.text);
+      _passwordError = Validators.loginPassword(passwordController.text);
     });
     return _emailError == null && _passwordError == null;
+  }
+
+  Future<void> _signIn() async {
+    FocusScope.of(context).unfocus();
+    if (!_validate()) return;
+    setState(() => _isLoading = true);
+    try {
+      await ref
+          .read(authRepositoryProvider)
+          .signIn(
+            email: emailController.text,
+            password: passwordController.text,
+          );
+      // Le routeur redirige vers le tableau de bord dès que la session
+      // est ouverte.
+      if (mounted) context.go('/dashboard');
+    } catch (error) {
+      if (mounted) setState(() => _emailError = friendlyError(error));
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
+    }
   }
 
   @override
@@ -381,37 +392,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
 
   Widget _buildLoginButton() {
     return GestureDetector(
-      onTap: _isLoading
-          ? null
-          : () async {
-              if (!_validate()) return;
-              setState(() => _isLoading = true);
-              try {
-                final response = await Supabase.instance.client.auth
-                    .signInWithPassword(
-                      email: emailController.text.trim(),
-                      password: passwordController.text.trim(),
-                    );
-                if (mounted) {
-                  final user = response.user;
-                  if (user != null) {
-                    final name = user.email?.split('@').first ?? 'Runner';
-                    ref.read(userProvider.notifier).state = name;
-                    ref.read(authProvider.notifier).login();
-                    await AuthService().saveToken(name);
-                    context.go('/dashboard');
-                  }
-                }
-              } catch (e) {
-                if (mounted) {
-                  setState(() {
-                    _emailError = 'Email ou mot de passe incorrect';
-                  });
-                }
-              } finally {
-                if (mounted) setState(() => _isLoading = false);
-              }
-            },
+      onTap: _isLoading ? null : _signIn,
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 200),
         width: double.infinity,

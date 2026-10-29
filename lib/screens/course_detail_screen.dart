@@ -1,51 +1,54 @@
 import 'package:flutter/material.dart';
-import 'package:snack_runner/data/app_data.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import 'package:snack_runner/models/course.dart';
-import 'package:snack_runner/screens/mission_screen.dart';
+import 'package:snack_runner/providers/auth_provider.dart';
+import 'package:snack_runner/providers/course_provider.dart';
 import 'package:snack_runner/theme/app_colors.dart';
+import 'package:snack_runner/widgets/common.dart';
 
-class CourseDetailScreen extends StatefulWidget {
-  final Course course;
+class CourseDetailScreen extends ConsumerStatefulWidget {
+  final String courseId;
 
-  const CourseDetailScreen({super.key, required this.course});
+  const CourseDetailScreen({super.key, required this.courseId});
 
   @override
-  State<CourseDetailScreen> createState() => _CourseDetailScreenState();
+  ConsumerState<CourseDetailScreen> createState() => _CourseDetailScreenState();
 }
 
-class _CourseDetailScreenState extends State<CourseDetailScreen> {
+class _CourseDetailScreenState extends ConsumerState<CourseDetailScreen> {
   bool _isLoading = false;
+
+  Future<void> _accept(Course course) async {
+    setState(() => _isLoading = true);
+    try {
+      await ref.read(courseRepositoryProvider).accept(course.id);
+      if (!mounted) return;
+      context.pushReplacement('/mission/${course.id}');
+    } catch (error) {
+      if (mounted) showErrorSnackBar(context, error);
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
-    final appData = AppData.instance;
+    final userId = ref.watch(currentUserIdProvider).valueOrNull;
 
     return Scaffold(
       backgroundColor: AppColors.bg0,
-      appBar: AppBar(
-        backgroundColor: AppColors.bg0,
-        foregroundColor: AppColors.textPrimary,
-        elevation: 0,
-        title: const Text('Détails de la course'),
-      ),
-      body: ValueListenableBuilder<List<Course>>(
-        valueListenable: appData.publishedCourses,
-        builder: (context, courses, _) {
-          final currentCourse = courses.firstWhere(
-            (item) => item.id == widget.course.id,
-            orElse: () => widget.course,
-          );
-          final isRunner =
-              currentCourse.runnerName == appData.currentUser.value;
-          final requester = currentCourse.requesterName;
-
+      appBar: darkAppBar('Détails de la course'),
+      body: CourseLoader(
+        courseId: widget.courseId,
+        builder: (context, course) {
           return SingleChildScrollView(
             padding: const EdgeInsets.all(20),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  currentCourse.title,
+                  course.title,
                   style: const TextStyle(
                     fontSize: 20,
                     fontWeight: FontWeight.bold,
@@ -54,136 +57,44 @@ class _CourseDetailScreenState extends State<CourseDetailScreen> {
                 ),
                 const SizedBox(height: 8),
                 Text(
-                  '${currentCourse.category} • ${currentCourse.rewardLabel}',
+                  '${course.category.label} • ${course.rewardLabel}',
                   style: const TextStyle(
                     fontSize: 14,
                     color: AppColors.textSecondary,
                   ),
                 ),
                 const SizedBox(height: 24),
-                _DetailRow(
+                if (_hasDetails(course))
+                  InfoRow(label: 'Commande', value: course.description!),
+                InfoRow(
                   label: 'Point de retrait',
-                  value: currentCourse.pickupLocation,
+                  value: course.pickupLocation,
                 ),
-                _DetailRow(
+                InfoRow(
                   label: 'Adresse de livraison',
-                  value: currentCourse.deliveryLocation,
+                  value: course.deliveryLocation,
                 ),
-                _DetailRow(label: 'Demandeur', value: requester),
-                _DetailRow(label: 'Statut', value: currentCourse.status.label),
-                if (currentCourse.runnerName.isNotEmpty)
-                  _DetailRow(label: 'Runner', value: currentCourse.runnerName),
+                InfoRow(label: 'Demandeur', value: course.requesterName),
+                InfoRow(label: 'Statut', value: course.status.label),
+                if (course.runnerName.isNotEmpty)
+                  InfoRow(label: 'Runner', value: course.runnerName),
                 const SizedBox(height: 24),
-                if (currentCourse.status == CourseStatus.enAttente &&
-                    currentCourse.requesterName != appData.currentUser.value)
-                  SizedBox(
-                    width: double.infinity,
-                    child: ElevatedButton(
-                      onPressed: _isLoading
-                          ? null
-                          : () async {
-                              setState(() => _isLoading = true);
-                              await Future.delayed(
-                                const Duration(milliseconds: 600),
-                              );
-                              if (mounted) {
-                                // ignore: use_build_context_synchronously
-                                appData.acceptCourse(currentCourse.id);
-                                // ignore: use_build_context_synchronously
-                                Navigator.push(
-                                  context,
-                                  MaterialPageRoute(
-                                    builder: (_) => MissionScreen(
-                                      courseId: currentCourse.id,
-                                    ),
-                                  ),
-                                );
-                              }
-                            },
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: AppColors.amber,
-                        foregroundColor: AppColors.black,
-                        padding: const EdgeInsets.symmetric(vertical: 16),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(50),
-                        ),
-                      ),
-                      child: _isLoading
-                          ? const SizedBox(
-                              height: 20,
-                              width: 20,
-                              child: CircularProgressIndicator(
-                                valueColor: AlwaysStoppedAnimation<Color>(
-                                  AppColors.white,
-                                ),
-                                strokeWidth: 2,
-                              ),
-                            )
-                          : const Text(
-                              'Accepter cette course',
-                              style: TextStyle(
-                                fontSize: 16,
-                                fontWeight: FontWeight.w600,
-                              ),
-                            ),
-                    ),
+                if (course.status == CourseStatus.enAttente &&
+                    !course.isRequester(userId))
+                  PrimaryButton(
+                    label: 'Accepter cette course',
+                    isLoading: _isLoading,
+                    onPressed: () => _accept(course),
                   ),
-                if ((currentCourse.status == CourseStatus.acceptee ||
-                        currentCourse.status == CourseStatus.livraison) &&
-                    isRunner)
-                  SizedBox(
-                    width: double.infinity,
-                    child: OutlinedButton(
-                      onPressed: _isLoading
-                          ? null
-                          : () async {
-                              setState(() => _isLoading = true);
-                              await Future.delayed(
-                                const Duration(milliseconds: 300),
-                              );
-                              if (mounted) {
-                                setState(() => _isLoading = false);
-                                // ignore: use_build_context_synchronously
-                                Navigator.push(
-                                  context,
-                                  MaterialPageRoute(
-                                    builder: (_) => MissionScreen(
-                                      courseId: currentCourse.id,
-                                    ),
-                                  ),
-                                );
-                              }
-                            },
-                      style: OutlinedButton.styleFrom(
-                        foregroundColor: AppColors.amber,
-                        side: const BorderSide(
-                          color: AppColors.amber,
-                          width: 1.5,
-                        ),
-                        padding: const EdgeInsets.symmetric(vertical: 16),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(50),
-                        ),
-                      ),
-                      child: _isLoading
-                          ? const SizedBox(
-                              height: 20,
-                              width: 20,
-                              child: CircularProgressIndicator(
-                                valueColor: AlwaysStoppedAnimation<Color>(
-                                  AppColors.amber,
-                                ),
-                                strokeWidth: 2,
-                              ),
-                            )
-                          : const Text(
-                              'Voir la mission',
-                              style: TextStyle(
-                                fontSize: 16,
-                                fontWeight: FontWeight.w600,
-                              ),
-                            ),
-                    ),
+                if (course.status.isActive && course.isRunner(userId))
+                  SecondaryButton(
+                    label: 'Voir la mission',
+                    onPressed: () => context.push('/mission/${course.id}'),
+                  ),
+                if (course.isRequester(userId))
+                  SecondaryButton(
+                    label: 'Suivre ma course',
+                    onPressed: () => context.push('/suivi/${course.id}'),
                   ),
               ],
             ),
@@ -194,42 +105,9 @@ class _CourseDetailScreenState extends State<CourseDetailScreen> {
   }
 }
 
-class _DetailRow extends StatelessWidget {
-  final String label;
-  final String value;
-
-  const _DetailRow({required this.label, required this.value});
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 16),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          SizedBox(
-            width: 120,
-            child: Text(
-              label,
-              style: const TextStyle(
-                fontSize: 13,
-                color: AppColors.textSecondary,
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-          ),
-          Expanded(
-            child: Text(
-              value,
-              style: const TextStyle(
-                fontSize: 14,
-                color: AppColors.textPrimary,
-                fontWeight: FontWeight.w500,
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
+/// La description complète n'est affichée que si elle apporte plus que le
+/// titre (qui en est la première ligne).
+bool _hasDetails(Course course) {
+  final description = course.description?.trim() ?? '';
+  return description.isNotEmpty && description != course.title;
 }

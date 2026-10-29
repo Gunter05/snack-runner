@@ -1,20 +1,22 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import '../router/app_router.dart';
+import 'package:snack_runner/models/user_profile.dart';
+import 'package:snack_runner/repositories/auth_repository.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
-final authProvider = StateNotifierProvider<AuthNotifier, bool>(
-  (ref) => AuthNotifier(),
+final authRepositoryProvider = Provider<AuthRepository>(
+  (ref) => SupabaseAuthRepository(Supabase.instance.client),
 );
 
-class AuthNotifier extends StateNotifier<bool> {
-  AuthNotifier() : super(false);
+/// Identifiant de l'utilisateur connecté, mis à jour à chaque changement
+/// de session (connexion, déconnexion, expiration).
+final currentUserIdProvider = StreamProvider<String?>((ref) async* {
+  final auth = ref.watch(authRepositoryProvider);
+  yield auth.currentUserId;
+  yield* auth.userIdChanges();
+});
 
-  void login() {
-    state = true;
-    AppRouter.notifyAuthChanged(true);
-  }
-
-  void logout() {
-    state = false;
-    AppRouter.notifyAuthChanged(false);
-  }
-}
+final profileProvider = FutureProvider<UserProfile?>((ref) async {
+  final userId = ref.watch(currentUserIdProvider).valueOrNull;
+  if (userId == null) return null;
+  return ref.watch(authRepositoryProvider).fetchProfile();
+});

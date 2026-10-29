@@ -1,38 +1,42 @@
 import 'package:flutter/material.dart';
-import 'package:snack_runner/data/app_data.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import 'package:snack_runner/models/course.dart';
-import 'package:snack_runner/screens/course_detail_screen.dart';
+import 'package:snack_runner/providers/auth_provider.dart';
+import 'package:snack_runner/providers/course_provider.dart';
 import 'package:snack_runner/theme/app_colors.dart';
+import 'package:snack_runner/widgets/common.dart';
 import 'package:snack_runner/widgets/course_card.dart';
 
-class CoursesScreen extends StatelessWidget {
+/// Courses en attente publiées par les autres utilisateurs.
+List<Course> availableCourses(List<Course> courses, String? userId) => courses
+    .where(
+      (course) =>
+          course.status == CourseStatus.enAttente &&
+          !course.isRequester(userId),
+    )
+    .toList();
+
+class CoursesScreen extends ConsumerWidget {
   const CoursesScreen({super.key});
 
   @override
-  Widget build(BuildContext context) {
-    final appData = AppData.instance;
+  Widget build(BuildContext context, WidgetRef ref) {
+    final userId = ref.watch(currentUserIdProvider).valueOrNull;
 
     return Scaffold(
       backgroundColor: AppColors.bg0,
-      appBar: AppBar(
-        backgroundColor: AppColors.bg0,
-        foregroundColor: AppColors.textPrimary,
-        elevation: 0,
-        title: const Text('Courses disponibles'),
-      ),
-      body: ValueListenableBuilder<String>(
-        valueListenable: appData.currentUser,
-        builder: (context, currentUser, _) {
-          return ValueListenableBuilder<List<Course>>(
-            valueListenable: appData.publishedCourses,
-            builder: (context, courses, _) {
-              final waitingCourses = courses
-                  .where(
-                    (course) =>
-                        course.status == CourseStatus.enAttente &&
-                        course.requesterName != currentUser,
-                  )
-                  .toList();
+      appBar: darkAppBar('Courses disponibles'),
+      body: ref
+          .watch(coursesProvider)
+          .when(
+            loading: () => const LoadingView(),
+            error: (error, _) => ErrorView(
+              error: error,
+              onRetry: () => ref.invalidate(coursesProvider),
+            ),
+            data: (courses) {
+              final waitingCourses = availableCourses(courses, userId);
 
               if (waitingCourses.isEmpty) {
                 return Center(
@@ -74,31 +78,9 @@ class CoursesScreen extends StatelessWidget {
                           textAlign: TextAlign.center,
                         ),
                         const SizedBox(height: 24),
-                        SizedBox(
-                          width: double.infinity,
-                          child: ElevatedButton(
-                            onPressed: () {
-                              Navigator.pushReplacementNamed(
-                                context,
-                                '/dashboard',
-                              );
-                            },
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: AppColors.amber,
-                              foregroundColor: AppColors.black,
-                              padding: const EdgeInsets.symmetric(vertical: 12),
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(50),
-                              ),
-                            ),
-                            child: const Text(
-                              'Retour au tableau de bord',
-                              style: TextStyle(
-                                fontSize: 14,
-                                fontWeight: FontWeight.w600,
-                              ),
-                            ),
-                          ),
+                        PrimaryButton(
+                          label: 'Retour au tableau de bord',
+                          onPressed: () => context.go('/dashboard'),
                         ),
                       ],
                     ),
@@ -106,29 +88,24 @@ class CoursesScreen extends StatelessWidget {
                 );
               }
 
-              return ListView.separated(
-                padding: const EdgeInsets.all(20),
-                itemCount: waitingCourses.length,
-                separatorBuilder: (_, __) => const SizedBox(height: 12),
-                itemBuilder: (context, index) {
-                  final course = waitingCourses[index];
-                  return CourseCard(
-                    course: course,
-                    onTap: () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (_) => CourseDetailScreen(course: course),
-                        ),
-                      );
-                    },
-                  );
-                },
+              return RefreshIndicator(
+                color: AppColors.amber,
+                onRefresh: () => ref.refresh(coursesProvider.future),
+                child: ListView.separated(
+                  padding: const EdgeInsets.all(20),
+                  itemCount: waitingCourses.length,
+                  separatorBuilder: (_, _) => const SizedBox(height: 12),
+                  itemBuilder: (context, index) {
+                    final course = waitingCourses[index];
+                    return CourseCard(
+                      course: course,
+                      onTap: () => context.push('/course/${course.id}'),
+                    );
+                  },
+                ),
               );
             },
-          );
-        },
-      ),
+          ),
     );
   }
 }

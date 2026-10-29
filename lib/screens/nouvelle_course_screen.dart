@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
-import 'package:snack_runner/data/app_data.dart';
+import 'package:go_router/go_router.dart';
+import 'package:snack_runner/core/validators.dart';
 import 'package:snack_runner/models/course.dart';
-import 'package:snack_runner/screens/recapitulatif_screen.dart';
 import 'package:snack_runner/theme/app_colors.dart';
 
 class NouvelleCourseScreen extends StatefulWidget {
@@ -16,9 +16,10 @@ class _NouvelleCourseScreenState extends State<NouvelleCourseScreen> {
   final TextEditingController pickupController = TextEditingController();
   final TextEditingController deliveryController = TextEditingController();
   final TextEditingController rewardController = TextEditingController();
-  String typeSelectionne = 'Cafétéria';
-  String recompenseType = 'Argent';
-  bool _isLoading = false;
+  final TextEditingController rewardDescriptionController =
+      TextEditingController();
+  CourseCategory typeSelectionne = CourseCategory.cafeteria;
+  RewardType recompenseType = RewardType.argent;
   String? _descriptionError;
   String? _pickupError;
   String? _deliveryError;
@@ -26,24 +27,24 @@ class _NouvelleCourseScreenState extends State<NouvelleCourseScreen> {
 
   bool _validate() {
     setState(() {
-      _descriptionError = descriptionController.text.trim().isEmpty
-          ? 'Description requise'
-          : null;
-      _pickupError = pickupController.text.trim().isEmpty
-          ? 'Lieu de retrait requis'
-          : null;
-      _deliveryError = deliveryController.text.trim().isEmpty
-          ? 'Lieu de livraison requis'
-          : null;
-      if (recompenseType == 'Argent') {
-        _rewardError = rewardController.text.trim().isEmpty
-            ? 'Montant requis'
-            : double.tryParse(rewardController.text.trim()) == null
-            ? 'Montant invalide'
-            : null;
-      } else {
-        _rewardError = null;
-      }
+      _descriptionError = Validators.required(
+        descriptionController.text,
+        'Description requise',
+      );
+      _pickupError = Validators.required(
+        pickupController.text,
+        'Lieu de retrait requis',
+      );
+      _deliveryError = Validators.required(
+        deliveryController.text,
+        'Lieu de livraison requis',
+      );
+      _rewardError = recompenseType == RewardType.argent
+          ? Validators.rewardAmount(rewardController.text)
+          : Validators.required(
+              rewardDescriptionController.text,
+              'Décris la récompense',
+            );
     });
     return _descriptionError == null &&
         _pickupError == null &&
@@ -57,33 +58,22 @@ class _NouvelleCourseScreenState extends State<NouvelleCourseScreen> {
     pickupController.dispose();
     deliveryController.dispose();
     rewardController.dispose();
+    rewardDescriptionController.dispose();
     super.dispose();
   }
 
-  Course _buildCourse() {
-    final requester = AppData.instance.currentUser.value;
-    final rewardValue = double.tryParse(rewardController.text.trim()) ?? 500;
-    final title = descriptionController.text.trim().isNotEmpty
-        ? descriptionController.text.trim()
-        : '$typeSelectionne rapide';
-
-    return Course(
-      id: DateTime.now().millisecondsSinceEpoch.toString(),
+  CourseDraft _buildDraft() {
+    final isMoney = recompenseType == RewardType.argent;
+    return CourseDraft(
       category: typeSelectionne,
-      title: title,
-      pickupLocation: pickupController.text.trim().isNotEmpty
-          ? pickupController.text.trim()
-          : typeSelectionne == 'Cafétéria'
-          ? 'Cafét RU B'
-          : 'Bureau des étudiants',
-      deliveryLocation: deliveryController.text.trim().isNotEmpty
-          ? deliveryController.text.trim()
-          : 'Amphi 3, Bâtiment B',
-      reward: rewardValue,
+      description: descriptionController.text.trim(),
+      pickupLocation: pickupController.text.trim(),
+      deliveryLocation: deliveryController.text.trim(),
       rewardType: recompenseType,
-      status: CourseStatus.enAttente,
-      requesterName: requester,
-      runnerName: '',
+      rewardAmount: isMoney ? double.parse(rewardController.text.trim()) : null,
+      rewardDescription: isMoney
+          ? null
+          : rewardDescriptionController.text.trim(),
     );
   }
 
@@ -223,7 +213,7 @@ class _NouvelleCourseScreenState extends State<NouvelleCourseScreen> {
               child: Row(
                 children: [
                   IconButton(
-                    onPressed: () => Navigator.pop(context),
+                    onPressed: () => context.pop(),
                     icon: const Icon(
                       Icons.arrow_back_ios_new,
                       color: AppColors.textPrimary,
@@ -257,9 +247,15 @@ class _NouvelleCourseScreenState extends State<NouvelleCourseScreen> {
                   children: [
                     _buildLabel('TYPE DE COURSE'),
                     _buildTypeSelector(
-                      ['Cafétéria', 'Colis', 'Autre'],
-                      typeSelectionne,
-                      (v) => setState(() => typeSelectionne = v),
+                      [
+                        for (final category in CourseCategory.values)
+                          category.label,
+                      ],
+                      typeSelectionne.label,
+                      (v) => setState(
+                        () => typeSelectionne = CourseCategory.values
+                            .firstWhere((category) => category.label == v),
+                      ),
                     ),
                     const SizedBox(height: 20),
 
@@ -290,12 +286,26 @@ class _NouvelleCourseScreenState extends State<NouvelleCourseScreen> {
 
                     _buildLabel('TYPE DE RÉCOMPENSE'),
                     _buildTypeSelector(
-                      ['Argent', 'Nourriture'],
-                      recompenseType,
-                      (v) => setState(() => recompenseType = v),
+                      [for (final type in RewardType.values) type.label],
+                      recompenseType.label,
+                      (v) => setState(() {
+                        recompenseType = RewardType.values.firstWhere(
+                          (type) => type.label == v,
+                        );
+                        _rewardError = null;
+                      }),
                     ),
 
-                    if (recompenseType == 'Argent') ...[
+                    if (recompenseType == RewardType.nourriture) ...[
+                      const SizedBox(height: 16),
+                      _buildLabel('RÉCOMPENSE PROPOSÉE'),
+                      _buildTextField(
+                        controller: rewardDescriptionController,
+                        hint: 'Ex : un sandwich offert',
+                        error: _rewardError,
+                      ),
+                    ],
+                    if (recompenseType == RewardType.argent) ...[
                       const SizedBox(height: 16),
                       _buildLabel('MONTANT'),
                       _buildTextField(
@@ -318,26 +328,11 @@ class _NouvelleCourseScreenState extends State<NouvelleCourseScreen> {
               child: SizedBox(
                 width: double.infinity,
                 child: ElevatedButton(
-                  onPressed: _isLoading
-                      ? null
-                      : () async {
-                          if (!_validate()) return;
-                          setState(() => _isLoading = true);
-                          await Future.delayed(
-                            const Duration(milliseconds: 600),
-                          );
-                          if (mounted) {
-                            final course = _buildCourse();
-                            Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                builder: (_) =>
-                                    RecapitulatifScreen(course: course),
-                              ),
-                            );
-                            setState(() => _isLoading = false);
-                          }
-                        },
+                  onPressed: () {
+                    FocusScope.of(context).unfocus();
+                    if (!_validate()) return;
+                    context.push('/recapitulatif', extra: _buildDraft());
+                  },
                   style: ElevatedButton.styleFrom(
                     backgroundColor: AppColors.amber,
                     foregroundColor: AppColors.black,
@@ -346,24 +341,10 @@ class _NouvelleCourseScreenState extends State<NouvelleCourseScreen> {
                       borderRadius: BorderRadius.circular(14),
                     ),
                   ),
-                  child: _isLoading
-                      ? const SizedBox(
-                          height: 20,
-                          width: 20,
-                          child: CircularProgressIndicator(
-                            valueColor: AlwaysStoppedAnimation<Color>(
-                              AppColors.white,
-                            ),
-                            strokeWidth: 2,
-                          ),
-                        )
-                      : const Text(
-                          'Voir le récapitulatif →',
-                          style: TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
+                  child: const Text(
+                    'Voir le récapitulatif →',
+                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+                  ),
                 ),
               ),
             ),

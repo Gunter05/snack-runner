@@ -41,69 +41,89 @@ SnackRunner is a mobile application designed to manage delivery jobs and track t
 
 ```
 lib/
-├── main.dart                 # Application entry point
-├── data/
-│   └── app_data.dart         # Application data management
-├── models/
-│   └── course.dart           # Course/delivery task model
+├── main.dart                 # Entry point (Supabase, FCM, router)
+├── core/                     # Config, validators, error messages
+├── models/                   # Course (errands table), UserProfile
+├── repositories/             # Supabase access (auth, errands, reviews)
+├── providers/                # Riverpod providers (session, courses)
+├── router/app_router.dart    # go_router routes + auth redirect
+├── services/                 # Push notifications (FCM)
 ├── screens/                  # UI screens
-│   ├── login_screen.dart
-│   ├── dashboard_screen.dart
-│   ├── courses_screen.dart
-│   ├── course_detail_screen.dart
-│   ├── nouvelle_course_screen.dart
-│   ├── inscription_screen.dart
-│   ├── mission_screen.dart
-│   ├── fin_mission_screen.dart
-│   ├── suivi_screen.dart
-│   └── recapitulatif_screen.dart
-└── widgets/
-    └── course_card.dart      # Reusable course card widget
+└── widgets/                  # Shared widgets
+supabase/
+├── migrations/               # SQL migrations (RLS, triggers)
+└── functions/                # Edge Functions (push notifications)
 ```
 
 ## Delivery Status States
 
-- **En attente** (Waiting) - Delivery request created, waiting for acceptance
-- **Acceptée** (Accepted) - Runner has accepted the delivery
-- **Livraison** (Delivering) - Delivery is in progress
-- **Terminée** (Completed) - Delivery has been completed
+Mapped to the Postgres enum `errand_status`:
+
+- **En attente** (`waiting`) - published, waiting for a runner; the requester can cancel
+- **Acceptée** (`accepted`) - a runner accepted it (one active mission per runner)
+- **Livraison** (`delivering`) - delivery in progress
+- **Terminée** (`done`) - delivered; both participants can rate each other
+- **Annulée** (`cancelled`) - cancelled by the requester
 
 ## Getting Started
 
 ### Prerequisites
 - Flutter SDK 3.9.0 or higher
-- Dart SDK
 - Android SDK or iOS development tools
 
-### Installation
+### Configuration
 
-1. Clone the repository
+The Supabase URL and anon key are injected at build time (they are no longer
+bundled as a readable `.env` asset):
+
 ```bash
-git clone <repository-url>
-cd snack-runner
+cp .env.example .env   # then fill in SUPABASE_ANON_KEY
 ```
 
-2. Install dependencies
+Run or build with:
+
 ```bash
-flutter pub get
+flutter run --dart-define-from-file=.env
 ```
 
-3. Run the application
 ```bash
-flutter run
+flutter build appbundle --release --dart-define-from-file=.env
 ```
 
-## Dependencies
+Without these values the app shows a configuration error screen.
 
-- `flutter` - Core Flutter framework
-- `cupertino_icons` - iOS-style icons
-- `flutter_lints` - Code linting rules
+### Push notifications
 
-## Build Information
+- Android: `android/app/google-services.json` (Firebase project).
+- iOS: add `ios/Runner/GoogleService-Info.plist` and enable the Push
+  Notifications capability in Xcode. Without it the app runs without push.
+- Edge Function secrets: `WEBHOOK_SECRET`, `CRON_SECRET`, `FCM_PROJECT_ID`,
+  `FCM_SERVICE_ACCOUNT_JSON`, plus the `webhook_secret` Vault entry (see
+  `supabase/migrations/20261028230000_security_hardening_2.sql`).
 
-- **Version**: 1.0.0
-- **Build Number**: 1
-- **Minimum SDK**: Dart 3.9.0
+### Android release signing
+
+Create `android/key.properties` (not committed):
+
+```
+storeFile=/path/to/upload-keystore.jks
+storePassword=...
+keyAlias=upload
+keyPassword=...
+```
+
+Without this file, release builds are signed with the debug key and cannot be
+published on the Play Store.
+
+### Tests
+
+```bash
+flutter analyze
+```
+
+```bash
+flutter test
+```
 
 ## Resources
 

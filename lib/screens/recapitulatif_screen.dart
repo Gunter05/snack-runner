@@ -1,30 +1,53 @@
 import 'package:flutter/material.dart';
-import 'package:snack_runner/data/app_data.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import 'package:snack_runner/models/course.dart';
-import 'package:snack_runner/screens/suivi_screen.dart';
+import 'package:snack_runner/providers/course_provider.dart';
 import 'package:snack_runner/theme/app_colors.dart';
+import 'package:snack_runner/widgets/common.dart';
 
-class RecapitulatifScreen extends StatefulWidget {
-  final Course course;
+class RecapitulatifScreen extends ConsumerStatefulWidget {
+  final CourseDraft draft;
 
-  const RecapitulatifScreen({super.key, required this.course});
+  const RecapitulatifScreen({super.key, required this.draft});
 
   @override
-  State<RecapitulatifScreen> createState() => _RecapitulatifScreenState();
+  ConsumerState<RecapitulatifScreen> createState() =>
+      _RecapitulatifScreenState();
 }
 
-class _RecapitulatifScreenState extends State<RecapitulatifScreen> {
+class _RecapitulatifScreenState extends ConsumerState<RecapitulatifScreen> {
   bool _isLoading = false;
+
+  Future<void> _publish() async {
+    setState(() => _isLoading = true);
+    try {
+      final course = await ref
+          .read(courseRepositoryProvider)
+          .create(widget.draft);
+      if (!mounted) return;
+      // Le formulaire sort de la pile : retour arrière depuis le suivi
+      // ramène au tableau de bord, sans possibilité de republier.
+      final router = GoRouter.of(context);
+      router.go('/dashboard');
+      router.push('/suivi/${course.id}');
+    } catch (error) {
+      if (mounted) {
+        showErrorSnackBar(context, error);
+        setState(() => _isLoading = false);
+      }
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
-    final appData = AppData.instance;
+    final draft = widget.draft;
     final details = [
-      {'label': 'Type', 'value': widget.course.category},
-      {'label': 'Commande', 'value': widget.course.title},
-      {'label': 'Retrait', 'value': widget.course.pickupLocation},
-      {'label': 'Livraison', 'value': widget.course.deliveryLocation},
-      {'label': 'Récompense', 'value': widget.course.rewardLabel},
+      {'label': 'Type', 'value': draft.category.label},
+      {'label': 'Commande', 'value': draft.description},
+      {'label': 'Retrait', 'value': draft.pickupLocation},
+      {'label': 'Livraison', 'value': draft.deliveryLocation},
+      {'label': 'Récompense', 'value': draft.rewardLabel},
     ];
 
     return Scaffold(
@@ -37,7 +60,7 @@ class _RecapitulatifScreenState extends State<RecapitulatifScreen> {
               child: Row(
                 children: [
                   IconButton(
-                    onPressed: () => Navigator.pop(context),
+                    onPressed: _isLoading ? null : () => context.pop(),
                     icon: const Icon(
                       Icons.arrow_back_ios_new,
                       color: AppColors.textPrimary,
@@ -168,27 +191,7 @@ class _RecapitulatifScreenState extends State<RecapitulatifScreen> {
                   SizedBox(
                     width: double.infinity,
                     child: ElevatedButton(
-                      onPressed: _isLoading
-                          ? null
-                          : () async {
-                              setState(() => _isLoading = true);
-                              await Future.delayed(
-                                const Duration(milliseconds: 600),
-                              );
-                              if (mounted) {
-                                if (!appData.isPublished(widget.course.id)) {
-                                  appData.publishCourse(widget.course);
-                                }
-                                // ignore: use_build_context_synchronously
-                                Navigator.pushReplacement(
-                                  context,
-                                  MaterialPageRoute(
-                                    builder: (_) =>
-                                        SuiviScreen(courseId: widget.course.id),
-                                  ),
-                                );
-                              }
-                            },
+                      onPressed: _isLoading ? null : _publish,
                       style: ElevatedButton.styleFrom(
                         backgroundColor: AppColors.amber,
                         foregroundColor: AppColors.black,
@@ -221,9 +224,7 @@ class _RecapitulatifScreenState extends State<RecapitulatifScreen> {
                   SizedBox(
                     width: double.infinity,
                     child: OutlinedButton(
-                      onPressed: _isLoading
-                          ? null
-                          : () => Navigator.pop(context),
+                      onPressed: _isLoading ? null : () => context.pop(),
                       style: OutlinedButton.styleFrom(
                         foregroundColor: AppColors.amber,
                         side: const BorderSide(
