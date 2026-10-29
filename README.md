@@ -92,6 +92,21 @@ flutter build appbundle --release --dart-define-from-file=.env
 
 Without these values the app shows a configuration error screen.
 
+### Web (production target)
+
+The web app is deployed on Vercel by GitHub Actions (`.github/workflows/web.yml`):
+preview URL for each pull request, production for `main`. Setup steps
+(Vercel project, GitHub secrets, Supabase Auth URLs and SMTP) are in
+[docs/deploiement-web.md](docs/deploiement-web.md).
+
+Local web run:
+
+```bash
+flutter run -d chrome --dart-define-from-file=.env
+```
+
+Push notifications are not enabled on the web yet.
+
 ### Push notifications
 
 - Android: `android/app/google-services.json` (Firebase project).

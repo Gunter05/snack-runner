@@ -1,0 +1,2 @@
+# Scripts exécutés sur les runners Linux de la CI
+*.sh text eol=lf

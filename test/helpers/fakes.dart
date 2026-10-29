@@ -26,6 +26,8 @@ class FakeAuthRepository implements AuthRepository {
   String? _userId;
   final roles = <UserRole>[];
   final signUps = <String>[];
+  final passwordResets = <String>[];
+  final newPasswords = <String>[];
 
   @override
   String? get currentUserId => _userId;
@@ -57,6 +59,14 @@ class FakeAuthRepository implements AuthRepository {
     _userId = null;
     _changes.add(null);
   }
+
+  @override
+  Future<void> sendPasswordReset(String email) async =>
+      passwordResets.add(email.trim());
+
+  @override
+  Future<void> updatePassword(String password) async =>
+      newPasswords.add(password);
 
   @override
   Future<UserProfile?> fetchProfile() async => _userId == null

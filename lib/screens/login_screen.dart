@@ -91,6 +91,41 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
     }
   }
 
+  /// Envoie le lien de réinitialisation à l'email saisi. Le message est le
+  /// même que le compte existe ou non, pour ne pas révéler les inscrits.
+  Future<void> _forgotPassword() async {
+    FocusScope.of(context).unfocus();
+    final emailError = Validators.email(emailController.text);
+    setState(() {
+      _emailError = emailError == null
+          ? null
+          : 'Saisis ton email pour recevoir le lien';
+      _passwordError = null;
+    });
+    if (emailError != null) return;
+
+    setState(() => _isLoading = true);
+    try {
+      await ref
+          .read(authRepositoryProvider)
+          .sendPasswordReset(emailController.text);
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Si un compte existe pour cet email, un lien de '
+            'réinitialisation vient d\'être envoyé.',
+          ),
+          backgroundColor: AppColors.success,
+        ),
+      );
+    } catch (error) {
+      if (mounted) setState(() => _emailError = friendlyError(error));
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -244,7 +279,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
                       Align(
                         alignment: Alignment.centerRight,
                         child: GestureDetector(
-                          onTap: () {},
+                          onTap: _isLoading ? null : _forgotPassword,
                           child: Text(
                             'Mot de passe oublié ?',
                             style: TextStyle(

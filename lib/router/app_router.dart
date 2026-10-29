@@ -12,6 +12,7 @@ import 'package:snack_runner/screens/fin_mission_screen.dart';
 import 'package:snack_runner/screens/inscription_screen.dart';
 import 'package:snack_runner/screens/login_screen.dart';
 import 'package:snack_runner/screens/mission_screen.dart';
+import 'package:snack_runner/screens/nouveau_mot_de_passe_screen.dart';
 import 'package:snack_runner/screens/nouvelle_course_screen.dart';
 import 'package:snack_runner/screens/profil_screen.dart';
 import 'package:snack_runner/screens/recapitulatif_screen.dart';
@@ -88,6 +89,13 @@ final routerProvider = Provider<GoRouter>((ref) {
         path: '/courses',
         name: 'courses',
         builder: (context, state) => const CoursesScreen(),
+      ),
+      GoRoute(
+        // Ouvert par le lien de réinitialisation, qui ouvre une session :
+        // sans session (lien expiré), la redirection mène à /login.
+        path: '/nouveau-mot-de-passe',
+        name: 'nouveau-mot-de-passe',
+        builder: (context, state) => const NouveauMotDePasseScreen(),
       ),
       GoRoute(
         path: '/profil',

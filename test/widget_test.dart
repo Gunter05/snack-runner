@@ -78,6 +78,65 @@ void main() {
       await tester.pumpAndSettle();
       expect(router.location, '/login');
     });
+
+    testWidgets('mot de passe oublié : envoie le lien à l\'email saisi', (
+      tester,
+    ) async {
+      final auth = FakeAuthRepository();
+      await pumpApp(tester, auth: auth);
+
+      await tester.tap(find.text('Mot de passe oublié ?'));
+      await tester.pumpAndSettle();
+      expect(
+        find.text('Saisis ton email pour recevoir le lien'),
+        findsOneWidget,
+      );
+      expect(auth.passwordResets, isEmpty);
+
+      await tester.enterText(find.byType(TextField).first, 'alice@univ.cm');
+      await tester.tap(find.text('Mot de passe oublié ?'));
+      await tester.pumpAndSettle();
+      expect(auth.passwordResets, ['alice@univ.cm']);
+      expect(find.textContaining('Si un compte existe'), findsOneWidget);
+    });
+
+    testWidgets('nouveau mot de passe depuis le lien de réinitialisation', (
+      tester,
+    ) async {
+      final auth = FakeAuthRepository(userId: aliceId);
+      final router = await pumpApp(
+        tester,
+        auth: auth,
+        initialLocation: '/nouveau-mot-de-passe',
+      );
+
+      final fields = find.byType(TextField);
+      await tester.enterText(fields.at(0), 'nouveaumdp');
+      await tester.enterText(fields.at(1), 'different');
+      await tester.tap(find.text('Enregistrer'));
+      await tester.pumpAndSettle();
+      expect(
+        find.text('Les mots de passe ne correspondent pas'),
+        findsOneWidget,
+      );
+
+      await tester.enterText(fields.at(1), 'nouveaumdp');
+      await tester.tap(find.text('Enregistrer'));
+      await tester.pumpAndSettle();
+      expect(auth.newPasswords, ['nouveaumdp']);
+      expect(router.location, '/dashboard');
+    });
+
+    testWidgets('lien de réinitialisation expiré : retour à la connexion', (
+      tester,
+    ) async {
+      final router = await pumpApp(
+        tester,
+        auth: FakeAuthRepository(),
+        initialLocation: '/nouveau-mot-de-passe',
+      );
+      expect(router.location, '/login');
+    });
   });
 
   group('Demandeur', () {

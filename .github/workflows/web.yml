@@ -1,0 +1,103 @@
+# Vérifie l'app (analyse, tests, build web) sur chaque PR et chaque push
+# sur main, puis déploie sur Vercel : aperçu pour les PR, production pour
+# main. Mise en place : docs/deploiement-web.md.
+name: Web
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: web-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  FLUTTER_VERSION: '3.44.4'
+  VERCEL_CLI: 'vercel@63.1.2'
+
+jobs:
+  web:
+    runs-on: ubuntu-latest
+    env:
+      SUPABASE_URL: ${{ vars.SUPABASE_URL }}
+      SUPABASE_ANON_KEY: ${{ vars.SUPABASE_ANON_KEY }}
+      VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+      VERCEL_ORG_ID: ${{ vars.VERCEL_ORG_ID }}
+      VERCEL_PROJECT_ID: ${{ vars.VERCEL_PROJECT_ID }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          channel: stable
+          cache: true
+
+      - run: flutter pub get
+
+      - run: flutter analyze
+
+      - run: flutter test
+
+      - name: Configuration de déploiement
+        id: config
+        run: |
+          if [ -n "$SUPABASE_URL" ] && [ -n "$SUPABASE_ANON_KEY" ]; then
+            echo "supabase=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "::warning::Variables SUPABASE_URL / SUPABASE_ANON_KEY absentes : build de vérification seulement, pas de déploiement."
+            echo "supabase=false" >> "$GITHUB_OUTPUT"
+          fi
+          if [ -n "$VERCEL_TOKEN" ] && [ -n "$VERCEL_ORG_ID" ] && [ -n "$VERCEL_PROJECT_ID" ]; then
+            echo "vercel=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "::warning::Secret VERCEL_TOKEN ou variables VERCEL_ORG_ID / VERCEL_PROJECT_ID absents : pas de déploiement."
+            echo "vercel=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      # --no-web-resources-cdn : CanvasKit est servi par le site lui-même,
+      # ce qui garde la CSP limitée à 'self' (deploy/vercel/config.json).
+      - name: Build web
+        run: |
+          url="${SUPABASE_URL:-https://example.supabase.co}"
+          key="${SUPABASE_ANON_KEY:-build-check}"
+          flutter build web --release --no-web-resources-cdn \
+            --dart-define=SUPABASE_URL="$url" \
+            --dart-define=SUPABASE_ANON_KEY="$key"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: web-build
+          path: build/web
+          retention-days: 7
+
+      # Sortie au format Build Output API : fichiers statiques + routes et
+      # en-têtes de deploy/vercel/config.json, déployés tels quels.
+      # Aperçu pour les PR de ce dépôt (les forks n'ont pas accès aux secrets).
+      - name: Déployer un aperçu
+        if: >-
+          github.event_name == 'pull_request' &&
+          steps.config.outputs.supabase == 'true' &&
+          steps.config.outputs.vercel == 'true'
+        run: |
+          npx --yes "$VERCEL_CLI" pull --yes --environment=preview --token="$VERCEL_TOKEN"
+          ./deploy/vercel/prepare-output.sh
+          url=$(npx --yes "$VERCEL_CLI" deploy --prebuilt --token="$VERCEL_TOKEN")
+          echo "Aperçu : $url" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Déployer en production
+        if: >-
+          github.event_name != 'pull_request' &&
+          github.ref == 'refs/heads/main' &&
+          steps.config.outputs.supabase == 'true' &&
+          steps.config.outputs.vercel == 'true'
+        run: |
+          npx --yes "$VERCEL_CLI" pull --yes --environment=production --token="$VERCEL_TOKEN"
+          ./deploy/vercel/prepare-output.sh
+          url=$(npx --yes "$VERCEL_CLI" deploy --prebuilt --prod --token="$VERCEL_TOKEN")
+          echo "Production : $url" >> "$GITHUB_STEP_SUMMARY"

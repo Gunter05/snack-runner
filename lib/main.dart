@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_web_plugins/url_strategy.dart';
 import 'package:snack_runner/core/config.dart';
 import 'package:snack_runner/providers/auth_provider.dart';
 import 'package:snack_runner/router/app_router.dart';
@@ -10,8 +11,15 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 final scaffoldMessengerKey = GlobalKey<ScaffoldMessengerState>();
 
+/// Largeur maximale de l'app sur le web : l'interface est pensée pour un
+/// téléphone et ne doit pas s'étirer sur un écran d'ordinateur.
+const _maxAppWidth = 520.0;
+
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  // URLs sans « # » sur le web (/suivi/… au lieu de /#/suivi/…) ; l'hôte
+  // renvoie toutes les routes vers index.html (deploy/vercel/config.json).
+  usePathUrlStrategy();
 
   if (!AppConfig.isValid) {
     runApp(const ConfigErrorApp());
@@ -25,6 +33,15 @@ Future<void> main() async {
   );
 
   final container = ProviderContainer();
+
+  // Lien de réinitialisation : la session de récupération peut arriver
+  // après le premier rendu ; on ouvre l'écran dès qu'elle est établie.
+  Supabase.instance.client.auth.onAuthStateChange.listen((state) {
+    if (state.event == AuthChangeEvent.passwordRecovery) {
+      container.read(routerProvider).go('/nouveau-mot-de-passe');
+    }
+  });
+
   runApp(
     UncontrolledProviderScope(
       container: container,
@@ -64,6 +81,15 @@ class SnackRunnerApp extends ConsumerWidget {
       theme: AppTheme.theme,
       scaffoldMessengerKey: scaffoldMessengerKey,
       routerConfig: ref.watch(routerProvider),
+      builder: (context, child) => ColoredBox(
+        color: AppColors.bg0,
+        child: Center(
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: _maxAppWidth),
+            child: child,
+          ),
+        ),
+      ),
     );
   }
 }

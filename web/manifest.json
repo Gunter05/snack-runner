@@ -1,11 +1,12 @@
 {
-    "name": "snack_runner",
-    "short_name": "snack_runner",
+    "name": "SnackRunner",
+    "short_name": "SnackRunner",
     "start_url": ".",
     "display": "standalone",
-    "background_color": "#0175C2",
-    "theme_color": "#0175C2",
-    "description": "A new Flutter project.",
+    "background_color": "#0E0E10",
+    "theme_color": "#0E0E10",
+    "description": "Courses entre étudiants sur le campus.",
+    "lang": "fr",
     "orientation": "portrait-primary",
     "prefer_related_applications": false,
     "icons": [
