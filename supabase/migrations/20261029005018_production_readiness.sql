@@ -1,6 +1,6 @@
 -- ============================================================
 --  Préparation production (revue d'octobre 2026, partie 3)
---  À appliquer après 20261028230000_security_hardening_2.sql.
+--  À appliquer après 20261028233000_fix_errand_completed_at.sql.
 -- ============================================================
 
 -- ── 1. users : colonnes modifiables par le client ────────────
@@ -13,11 +13,11 @@ REVOKE UPDATE ON public.users FROM authenticated;
 GRANT UPDATE (nom, role, photo_url) ON public.users TO authenticated;
 
 -- ── 2. errands : completed_at fixé avant la contrainte ───────
--- La contrainte completed_at_only_when_done est vérifiée avant les
--- triggers AFTER : passer une course à done sans completed_at
--- échouait. completed_at est donc fixé dans le trigger BEFORE.
--- (Version déjà en ligne, reportée ici pour que le dépôt reflète
--- la base.)
+-- restrict_errand_update est identique à celle de
+-- 20261028233000_fix_errand_completed_at.sql ; elle est gardée ici
+-- car ce fichier reproduit exactement ce qui a été appliqué.
+-- Comme completed_at est désormais rempli dans le trigger BEFORE,
+-- l'UPDATE du trigger AFTER plus bas devient inutile.
 CREATE OR REPLACE FUNCTION public.restrict_errand_update()
 RETURNS TRIGGER
 LANGUAGE plpgsql
